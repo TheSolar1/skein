@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Skein coverage map</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.min.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<aside>
+  <h1>Skein coverage map</h1>
+  <p class="hint">Radio emitters in France (ANFR open data). Click a dot to see how far its signal reaches <b>with relief</b>, then click the map to get the antenna you need at that spot.</p>
+  <p id="count" class="hint">Loading emitters…</p>
+
+  <label>Frequency <select id="freq"></select></label>
+  <label>Emitter power, EIRP (dBm) <input id="eirp" type="number" value="50" step="1"></label>
+  <label>Your antenna gain (dBi) <input id="gain" type="number" value="0" step="1"></label>
+  <label>Your antenna height (m) <input id="rxh" type="number" value="2" min="1" max="30"></label>
+  <label>Receiver sensitivity (dBm) <input id="sens" type="number" value="-110" step="1"></label>
+  <label>Max distance (km) <input id="maxkm" type="number" value="30" min="5" max="80"></label>
+
+  <div id="info" class="card">Select an emitter on the map.</div>
+  <p id="status" class="hint"></p>
+  <p class="hint">Emitter power is not in the ANFR dataset: 50 dBm EIRP is a typical macro cell, adjust it. For a Skein/LoRa node use 868 MHz and about 14 dBm. Model: free-space loss + single knife-edge diffraction over the terrain (Mapterhorn), earth radius k=4/3. It is an estimate, not a survey.</p>
+</aside>
+<div id="map"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
+<script src="propagation.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
