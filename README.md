@@ -27,6 +27,8 @@ Early skeleton. What works today is tested; what does not exist yet is listed ho
 
 ## Coverage map (`site/`)
 
+**Live: https://thesolar1.github.io/skein/** (served from the `gh-pages` branch; refresh it with `git subtree split --prefix site -b gh-pages && git push -f origin gh-pages`).
+
 ```
 cd site && python -m http.server 8140     # then open http://127.0.0.1:8140
 ```
