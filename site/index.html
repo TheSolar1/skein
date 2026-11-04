@@ -3,32 +3,69 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Skein coverage map</title>
+<title>Skein map</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.min.css">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.min.css">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <aside>
-  <h1>Skein coverage map</h1>
-  <p class="hint">Radio emitters in France (ANFR open data). Click a dot to see how far its signal reaches <b>with relief</b>, then click the map to get the antenna you need at that spot.</p>
-  <p id="count" class="hint">Loading emitters…</p>
+  <h1>Skein map</h1>
+  <p class="hint">Mesh nodes in France and the zones where you can receive them. The colour tells you which antenna you need. Click a node to see its zone.</p>
+  <p id="counts" class="hint">Loading nodes…</p>
 
-  <label>Frequency <select id="freq"></select></label>
-  <label>Emitter power, EIRP (dBm) <input id="eirp" type="number" value="50" step="1"></label>
-  <label>Your antenna gain (dBi) <input id="gain" type="number" value="0" step="1"></label>
-  <label>Your antenna height (m) <input id="rxh" type="number" value="2" min="1" max="30"></label>
-  <label>Receiver sensitivity (dBm) <input id="sens" type="number" value="-110" step="1"></label>
-  <label>Max distance (km) <input id="maxkm" type="number" value="30" min="5" max="80"></label>
+  <div class="layers">
+    <label class="chk"><input id="l-skein" type="checkbox" checked><i class="dot" style="background:#00a86b"></i> Skein nodes (our network)</label>
+    <label class="chk"><input id="l-mesh" type="checkbox" checked><i class="dot" style="background:#1565c0"></i> Meshtastic nodes</label>
+    <label class="chk sub"><input id="routers" type="checkbox"> only routers / repeaters</label>
+    <label class="chk"><input id="l-masts" type="checkbox"><i class="dot" style="background:#777"></i> Mobile masts (reference)</label>
+  </div>
 
-  <div id="info" class="card">Select an emitter on the map.</div>
+  <div class="row">
+    <button id="zones" class="main">Zones for nodes in view</button>
+    <button id="clear">Clear</button>
+  </div>
+  <label>Zones from
+    <select id="zonesrc">
+      <option value="skein">Skein nodes</option>
+      <option value="routers" selected>Meshtastic routers / repeaters</option>
+      <option value="mesh">All Meshtastic nodes</option>
+      <option value="all">Everything</option>
+    </select>
+  </label>
   <p id="status" class="hint"></p>
-  <p class="hint">Emitter power is not in the ANFR dataset: 50 dBm EIRP is a typical macro cell, adjust it. For a Skein/LoRa node use 868 MHz and about 14 dBm. Model: free-space loss + single knife-edge diffraction over the terrain (Mapterhorn), earth radius k=4/3. It is an estimate, not a survey.</p>
+  <div id="info" class="card">Click a node on the map.</div>
+
+  <h2>Antenna needed</h2>
+  <div id="legend"></div>
+  <table id="zonestats"></table>
+
+  <details>
+    <summary>Radio settings</summary>
+    <label>Band
+      <select id="freq">
+        <option value="868" selected>868 MHz LoRa (licence-free)</option>
+        <option value="433">433 MHz LoRa (licence-free)</option>
+        <option value="2400">2.4 GHz Wi-Fi / BLE (licence-free)</option>
+      </select>
+    </label>
+    <label>Node power, EIRP (dBm) <input id="eirp" type="number" value="14"></label>
+    <label>Receiver sensitivity (dBm) <input id="sens" type="number" value="-130"></label>
+    <label>Node antenna height (m) <input id="txh" type="number" value="5" min="1" max="100"></label>
+    <label>Your antenna height (m) <input id="rxh" type="number" value="2" min="1" max="30"></label>
+    <label>Max distance (km) <input id="maxkm" type="number" value="25" min="5" max="60"></label>
+  </details>
+
+  <details>
+    <summary>Add my Skein node</summary>
+    <p class="hint">Place a node to see what it would cover. It is stored in this browser only.</p>
+    <div class="row"><button id="add">Place a node</button><button id="export">Export my nodes</button></div>
+    <textarea id="exported" rows="3" placeholder="exported JSON appears here"></textarea>
+  </details>
+
+  <p class="hint">Meshtastic positions come from the public Meshtastic map (as published by their owners, many are blurred). Skein nodes: none exist yet except the ones you add. Model: free-space loss + single knife-edge diffraction over real terrain (Mapterhorn), earth radius k=4/3. An estimate for planning, not a survey.</p>
 </aside>
 <div id="map"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
 <script src="propagation.js"></script>
 <script src="app.js"></script>
 </body>

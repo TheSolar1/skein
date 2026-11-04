@@ -29,15 +29,17 @@ Early skeleton. What works today is tested; what does not exist yet is listed ho
 
 **Live: https://thesolar1.github.io/skein/** (served from the `gh-pages` branch; refresh it with `git subtree split --prefix site -b gh-pages && git push -f origin gh-pages`).
 
-```
-cd site && python -m http.server 8140     # then open http://127.0.0.1:8140
-```
+The map shows the nodes that transmit **our network** (Skein, green) and **the other mesh networks** (Meshtastic, blue; a France snapshot of the public Meshtastic map), plus mobile masts as an optional reference layer.
 
-Click a red dot: the orange area is where a receiver of your choice (gain, height, sensitivity) can hear it, computed along 72 radials over real elevation data. The dashed grey line is the same range without relief. Then click anywhere: you get the path loss, the signal level and the antenna (Yagi length or dish diameter) needed there.
+- Click a node, or press **Zones for nodes in view**: the area it reaches is painted in colours that say **which antenna you need** (stock dipole, 5 dBi omni, small/medium/long Yagi, dish), computed over real terrain, with the antenna size for the chosen band in the legend and the area (km²) of each colour.
+- Click anywhere on the zones: the antenna needed at that exact spot (Yagi length or dish diameter).
+- **Place a node** to see what your own Skein node would cover; **Export my nodes** gives JSON to send as a pull request to `site/data/skein-nodes.json` (it is empty today: no Skein node exists yet).
+- Bands: 868 MHz and 433 MHz LoRa, 2.4 GHz Wi-Fi/BLE (all licence-free). Power, sensitivity and antenna heights are adjustable.
+- Share a view: `?view=lat,lon,zoom&zones=1`.
 
-Model: free-space loss + single knife-edge diffraction over the terrain profile (ITU-R P.526 approximation), earth radius k = 4/3. It is an estimate for planning, not a survey. ANFR's public dataset has no transmit power, so EIRP is a setting (default 50 dBm, a typical macro cell). Data: ANFR "Données sur les réseaux mobiles" (Licence Ouverte 2.0), regenerate with `site/data/build_emitters.py`; elevation: Mapterhorn tiles.
+Model: free-space loss + single knife-edge diffraction over the terrain profile (ITU-R P.526 approximation), earth radius k = 4/3, 300 m grid. An estimate for planning, not a survey. Meshtastic positions are what each owner chose to publish (many are blurred), and only position, role and hardware are kept. Data: Meshtastic map (`site/data/build_mesh.py`), ANFR masts (`build_emitters.py`, Licence Ouverte 2.0), elevation by Mapterhorn.
 
-The propagation maths are tested: `node site/test/propagation.test.js`.
+Tests: `node site/test/propagation.test.js`.
 
 ## The software (`infra/`)
 

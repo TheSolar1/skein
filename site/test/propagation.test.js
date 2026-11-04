@@ -28,4 +28,14 @@ assert.ok(P.antennaSize(24, 3500).dishDiameter < 0.6);
 // Destination round trip: 100 km north then back.
 const [lat, lon] = P.destination(48, 2, 0, 100);
 assert.ok(Math.abs(P.distKm(48, 2, lat, lon) - 100) < 0.01);
+
+
+// lossProfile agrees with pathLoss at every sample.
+const lp = P.lossProfile(ridge, 100, 868, 30, 2);
+for (const i of [10, 50, 80, 100]) assert.ok(Math.abs(lp[i] - P.pathLoss(ridge.slice(0, i + 1), 100, 868, 30, 2)) < 0.01, `lossProfile[${i}]`);
+
+// Gain classes: a dipole is class 0, 12 dBi class 3, 40 dBi unreachable.
+assert.equal(P.gainClass(0), 0);
+assert.equal(P.gainClass(12), 3);
+assert.equal(P.gainClass(40), -1);
 console.log("propagation tests OK");
