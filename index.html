@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Skein map</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='9' r='2.3' fill='%2300a86b'/%3E%3Cpath d='M12 11.5V22M8 22h8M7.6 5.6a6 6 0 0 0 0 6.8M16.4 5.6a6 6 0 0 1 0 6.8M4.9 3a10 10 0 0 0 0 12M19.1 3a10 10 0 0 1 0 12' stroke='%2300a86b' stroke-width='1.9' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -33,6 +34,13 @@
     </select>
   </label>
   <div class="row"><button id="link">Link two nodes</button></div>
+  <label>Relay through
+    <select id="relays">
+      <option value="skein">Skein nodes only</option>
+      <option value="routers" selected>Skein + Meshtastic routers</option>
+      <option value="all">Skein + all Meshtastic nodes</option>
+    </select>
+  </label>
   <p id="status" class="hint"></p>
   <div id="linkbox"><div id="linkres" class="hint"></div><canvas id="profile" width="280" height="70"></canvas></div>
   <div id="info" class="card">Click a node on the map.</div>
@@ -60,7 +68,13 @@
 
   <details>
     <summary>Add my Skein node</summary>
-    <p class="hint">Place a node to see what it would cover. It is stored in this browser only.</p>
+    <p class="hint">Describe your node, then place it on the map. It is stored in this browser only.</p>
+    <label>Antenna type <select id="atype"></select></label>
+    <label>Antenna size / length (m) <input id="asize" type="number" step="0.05" min="0" max="10"></label>
+    <p class="hint" id="again"></p>
+    <label class="chk"><input id="s868" type="checkbox" checked> 868 MHz LoRa <input id="p868" type="number" value="14" class="pw"> dBm</label>
+    <label class="chk"><input id="s433" type="checkbox"> 433 MHz LoRa <input id="p433" type="number" value="10" class="pw"> dBm</label>
+    <label class="chk"><input id="s2400" type="checkbox"> 2.4 GHz Wi-Fi / BLE <input id="p2400" type="number" value="10" class="pw"> dBm</label>
     <div class="row"><button id="add">Place a node</button><button id="export">Export my nodes</button></div>
     <textarea id="exported" rows="3" placeholder="exported JSON appears here"></textarea>
   </details>

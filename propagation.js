@@ -96,7 +96,30 @@
     };
   }
 
-  const api = { C, wavelength, fspl, knifeEdge, distKm, destination, pathLoss, lossProfile, GAIN_CLASSES, gainClass, rxPower, neededGain, antennaSize };
+  // Antenna types the map lets you pick. `size` is the physical dimension in metres (see `sizeLabel`).
+  const ANTENNAS = {
+    dipole: { label: "Dipole / whip", sizeLabel: "fixed (half wave)" },
+    omni: { label: "Omni collinear", sizeLabel: "length (m)" },
+    yagi: { label: "Yagi", sizeLabel: "boom length (m)" },
+    panel: { label: "Patch panel", sizeLabel: "side (m)" },
+    dish: { label: "Dish", sizeLabel: "diameter (m)" },
+  };
+  // Gain (dBi) of an antenna of the given type and size at fMHz. Rule-of-thumb formulas, inverse of antennaSize for Yagi and dish.
+  function antennaGain(type, size, fMHz) {
+    const lam = wavelength(fMHz), s = Math.max(size || 0, 0);
+    switch (type) {
+      case "omni": return Math.min(12, 2.15 + 3 * Math.log2(Math.max(s / (lam / 2), 1)));
+      case "yagi": {
+        const n = Math.min(60, Math.max(3, Math.round(s / (0.4 * lam))));
+        return 7 + 3.5 * Math.log2(n / 3);
+      }
+      case "panel": return Math.min(20, Math.max(2.15, 10 * Math.log10((4 * Math.PI * s * s * 0.7) / (lam * lam))));
+      case "dish": return Math.max(2.15, 10 * Math.log10(0.55 * (Math.PI * s / lam) ** 2));
+      default: return 2.15;
+    }
+  }
+
+  const api = { ANTENNAS, antennaGain, C, wavelength, fspl, knifeEdge, distKm, destination, pathLoss, lossProfile, GAIN_CLASSES, gainClass, rxPower, neededGain, antennaSize };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.Prop = api;
 })(typeof self !== "undefined" ? self : this);
