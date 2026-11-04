@@ -84,7 +84,7 @@ async function computeZones(nodes, p) {
   const y0 = Math.min(...pts.map(q => q.y)) - reach, y1 = Math.max(...pts.map(q => q.y)) + reach;
   const W = Math.ceil((x1 - x0) / cellP), H = Math.ceil((y1 - y0) / cellP);
   if (W * H > MAX_CELLS) return status(`Area too large (${W}×${H} cells): zoom in or reduce the max distance.`);
-  const need = new Float32Array(W * H).fill(Infinity);
+  const need = new Float32Array(W * H).fill(Infinity), rays = [];
   for (let k = 0; k < nodes.length; k++) {
     const n = nodes[k];
     status(`Computing zones… node ${k + 1}/${nodes.length}`);
@@ -97,12 +97,15 @@ async function computeZones(nodes, p) {
         prof[i] = elevation(at[i][0], at[i][1]);
       }
       const loss = Prop.lossProfile(prof, STEP, p.f, n.h || p.txH, p.rxH), eirp = nodeEirp(n, p);
+      let reach = 0;
       for (let i = 1; i <= steps; i++) {
-        const g = Math.max(0, p.sens - (eirp - loss[i])); // gain over 0 dBi needed at this point
+        const g = Math.max(0, p.sens - (eirp - loss[i]));
+        if (g <= 30) reach = i; // farthest point on this radial that some antenna up to 30 dBi still hears // gain over 0 dBi needed at this point
         const q = crs.project(L.latLng(at[i][0], at[i][1]));
         const cx = Math.floor((q.x - x0) / cellP), cy = Math.floor((q.y - y0) / cellP);
         if (cx >= 0 && cx < W && cy >= 0 && cy < H && g < need[cy * W + cx]) need[cy * W + cx] = g;
       }
+      rays.push((reach * STEP) / 1000);
     }
   }
   // Paint: one pixel per cell, north up.
@@ -125,6 +128,8 @@ async function computeZones(nodes, p) {
   grid = { need, W, H, x0, y0, cellP, crs, f: p.f, nodes: nodes.length };
   const km2 = count.map(n => (n * CELL * CELL) / 1e6);
   $("zonestats").innerHTML = Prop.GAIN_CLASSES.map((c, i) => `<tr><td><i style="background:${c.color}"></i>${c.label}</td><td>${Math.round(km2[i]).toLocaleString("en")} km²</td></tr>`).join("");
+  const total = km2.reduce((x, y) => x + y, 0), far = Math.max(...rays), mean = rays.reduce((x, y) => x + y, 0) / rays.length;
+  $("zonesize").innerHTML = `<b>Zone size</b>: ${Math.round(total).toLocaleString("en")} km² covered` + (nodes.length === 1 ? ` · reaches up to <b>${far.toFixed(1)} km</b> (average ${mean.toFixed(1)} km)` : ` by ${nodes.length} nodes · farthest point ${far.toFixed(1)} km from a node`);
   status(`Zones from ${nodes.length} node${nodes.length > 1 ? "s" : ""}. Click anywhere to read the antenna needed.`);
   legend(p.f);
 }
@@ -251,7 +256,8 @@ async function checkLink(a, b, p) {
   status("");
 }
 function drawProfile(prof, stepM, p, hA, hB) {
-  const cv = $("profile"), ctx = cv.getContext("2d"), W = cv.width, H = cv.height, n = prof.length - 1;
+  const cv = $("profile"); cv.style.display = "block";
+  const ctx = cv.getContext("2d"), W = cv.width, H = cv.height, n = prof.length - 1;
   const hs = [prof[0] + hA, prof[n] + hB], lo = Math.min(...prof) - 20, hi = Math.max(...prof, ...hs) + 20;
   const X = i => (i / n) * W, Y = h => H - ((h - lo) / (hi - lo)) * H;
   ctx.clearRect(0, 0, W, H);
@@ -346,7 +352,7 @@ async function meshPath(a, b, p, dKm, directOk) {
 // ── Wiring ───────────────────────────────────────────────────────────────────
 $("freq").onchange = () => { const d = PRESETS[$("freq").value]; $("eirp").value = d.eirp; $("sens").value = d.sens; legend(Number($("freq").value)); };
 $("zones").onclick = () => computeZones(visibleNodes(), params());
-$("clear").onclick = () => { if (zoneLayer) map.removeLayer(zoneLayer); zoneLayer = grid = null; $("zonestats").textContent = ""; status(""); };
+$("clear").onclick = () => { if (zoneLayer) map.removeLayer(zoneLayer); zoneLayer = grid = null; $("zonestats").textContent = ""; $("zonesize").textContent = ""; status(""); };
 $("link").onclick = () => setLinking(!linking);
 $("add").onclick = () => { adding = !adding; $("add").classList.toggle("on", adding); map.getContainer().style.cursor = adding ? "crosshair" : ""; status(adding ? "Click the map where your Skein node is." : ""); };
 $("export").onclick = () => { const t = JSON.stringify(localSkein(), null, 1); navigator.clipboard?.writeText(t); $("exported").value = t; status("Copied. Send it as a pull request to site/data/skein-nodes.json."); };
