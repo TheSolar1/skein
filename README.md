@@ -33,8 +33,8 @@ The map shows the nodes that transmit **our network** (Skein, green) and **the o
 
 - Click a node, or press **Zones for nodes in view**: the area it reaches is painted in colours that say **which antenna you need** (stock dipole, 5 dBi omni, small/medium/long Yagi, dish), computed over real terrain, with the antenna size for the chosen band in the legend and the area (km²) of each colour.
 - Click anywhere on the zones: the antenna needed at that exact spot (Yagi length or dish diameter).
-- **Link two nodes**: click two nodes (or any two points) and the map says whether they are connected: distance, signal level, margin in dB, free-space loss vs terrain loss, a terrain profile, and if not, the antenna gain missing at each end. Share: `?link=lat1,lon1,lat2,lon2`.
-- **Place a node** to see what your own Skein node would cover; **Export my nodes** gives JSON to send as a pull request to `site/data/skein-nodes.json` (it is empty today: no Skein node exists yet).
+- **Link two nodes**: click two nodes (or any two points). The map checks the direct link (distance, signal, margin in dB, free-space vs terrain loss, terrain profile, antenna gain missing) **and then the whole network**: it searches a route through other nodes acting as relays (Skein only, or Skein + Meshtastic routers, or all), lists the hops, or tells you how far the signal gets and where a relay is missing. Mixing Skein and Meshtastic relays assumes the Meshtastic adapter, which is not built yet. Share: `?link=lat1,lon1,lat2,lon2`.
+- **Place a node** with its antenna (type and length: dipole, omni, Yagi, panel, dish; the gain is computed per band) and one or several signals (868 MHz, 433 MHz, 2.4 GHz, each with its power); then to see what your own Skein node would cover; **Export my nodes** gives JSON to send as a pull request to `site/data/skein-nodes.json` (it is empty today: no Skein node exists yet).
 - Bands: 868 MHz and 433 MHz LoRa, 2.4 GHz Wi-Fi/BLE (all licence-free). Power, sensitivity and antenna heights are adjustable.
 - Share a view: `?view=lat,lon,zoom&zones=1`.
 

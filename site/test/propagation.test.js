@@ -38,4 +38,11 @@ for (const i of [10, 50, 80, 100]) assert.ok(Math.abs(lp[i] - P.pathLoss(ridge.s
 assert.equal(P.gainClass(0), 0);
 assert.equal(P.gainClass(12), 3);
 assert.equal(P.gainClass(40), -1);
+
+
+// antennaGain inverts antennaSize for Yagi and dish.
+for (const g of [10, 15, 18]) assert.ok(Math.abs(P.antennaGain("yagi", P.antennaSize(g, 868).yagiBoom, 868) - g) < 1.5, `yagi ${g}`);
+for (const g of [15, 24]) assert.ok(Math.abs(P.antennaGain("dish", P.antennaSize(g, 2400).dishDiameter, 2400) - g) < 0.01, `dish ${g}`);
+assert.equal(P.antennaGain("dipole", 5, 868), 2.15);
+assert.ok(P.antennaGain("omni", 1.4, 868) > P.antennaGain("omni", 0.35, 868));
 console.log("propagation tests OK");
