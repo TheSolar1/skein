@@ -32,7 +32,9 @@
       <option value="all">Everything</option>
     </select>
   </label>
+  <div class="row"><button id="link">Link two nodes</button></div>
   <p id="status" class="hint"></p>
+  <div id="linkbox"><div id="linkres" class="hint"></div><canvas id="profile" width="280" height="70"></canvas></div>
   <div id="info" class="card">Click a node on the map.</div>
 
   <h2>Antenna needed</h2>
@@ -50,6 +52,7 @@
     </label>
     <label>Node power, EIRP (dBm) <input id="eirp" type="number" value="14"></label>
     <label>Receiver sensitivity (dBm) <input id="sens" type="number" value="-130"></label>
+    <label>Node antenna gain, for links (dBi) <input id="ngain" type="number" value="2"></label>
     <label>Node antenna height (m) <input id="txh" type="number" value="5" min="1" max="100"></label>
     <label>Your antenna height (m) <input id="rxh" type="number" value="2" min="1" max="30"></label>
     <label>Max distance (km) <input id="maxkm" type="number" value="25" min="5" max="60"></label>

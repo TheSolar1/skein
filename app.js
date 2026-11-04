@@ -11,7 +11,7 @@ const PRESETS = { 868: { eirp: 14, sens: -130 }, 433: { eirp: 10, sens: -130 }, 
 
 const tileCache = new Map(), tileData = new Map();
 const store = (k, v) => { try { v === undefined ? JSON.parse(localStorage.getItem(k)) : localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
-let skeinNodes = [], meshNodes = [], masts = null, zoneLayer = null, grid = null, selectedMarker = null, adding = false;
+let linking = false, linkA = null, linkLayer = L.layerGroup().addTo(map), skeinNodes = [], meshNodes = [], masts = null, zoneLayer = null, grid = null, selectedMarker = null, adding = false;
 const layers = { skein: L.layerGroup().addTo(map), mesh: L.layerGroup().addTo(map), masts: L.layerGroup() };
 
 // ── Terrain ──────────────────────────────────────────────────────────────────
@@ -58,7 +58,7 @@ function elevation(lat, lon) {
 // ── Parameters ───────────────────────────────────────────────────────────────
 const params = () => ({
   f: Number($("freq").value), eirp: Number($("eirp").value), sens: Number($("sens").value),
-  rxH: Number($("rxh").value), maxKm: Number($("maxkm").value), txH: Number($("txh").value),
+  nodeGain: Number($("ngain").value), rxH: Number($("rxh").value), maxKm: Number($("maxkm").value), txH: Number($("txh").value),
 });
 const status = t => ($("status").textContent = t);
 const tick = () => new Promise(r => setTimeout(r, 0));
@@ -147,7 +147,7 @@ function drawNodes() {
   layers.skein.clearLayers(); layers.mesh.clearLayers();
   const add = (n, group, color, r) => {
     const m = L.circleMarker([n.lat, n.lon], nodeIcon(color, r)).addTo(group);
-    m.on("click", ev => { L.DomEvent.stopPropagation(ev); select(n, m); });
+    m.on("click", ev => { L.DomEvent.stopPropagation(ev); linking ? pickLink(n) : select(n, m); });
   };
   const onlyRouters = $("routers").checked;
   for (const n of meshNodes) if (!onlyRouters || ROUTER_ROLES.has(n.role)) add(n, layers.mesh, ROUTER_ROLES.has(n.role) ? "#1565c0" : "#5b9bd5", ROUTER_ROLES.has(n.role) ? 6 : 4);
@@ -158,6 +158,7 @@ const localSkein = () => store("skein_nodes_local") || [];
 
 // ── Click on the map: read the zone grid, or place a node ────────────────────
 map.on("click", ev => {
+  if (linking) return pickLink({ lat: ev.latlng.lat, lon: ev.latlng.lng, kind: "point", role: "POINT" });
   if (adding) {
     adding = false; $("add").classList.remove("on"); map.getContainer().style.cursor = "";
     const mine = localSkein(), n = { lat: +ev.latlng.lat.toFixed(5), lon: +ev.latlng.lng.toFixed(5), h: Number($("txh").value), kind: "skein", role: "SKEIN" };
@@ -174,10 +175,72 @@ map.on("click", ev => {
       (g > 2.15 ? `<br>Yagi ≈ ${a.yagiElements} elements, boom ${cm(a.yagiBoom)}<br>or dish ≈ ${cm(a.dishDiameter)}` : `<br>A ${cm(a.dipole)} dipole is enough.`)).openOn(map);
 });
 
+// ── Link check: can two nodes talk to each other? ────────────────────────────
+function pickLink(n) {
+  if (!linkA) {
+    linkA = n; linkLayer.clearLayers();
+    L.circleMarker([n.lat, n.lon], { radius: 10, color: "#ff2d95", weight: 3, fill: false }).addTo(linkLayer);
+    return status("Now click the second node (or any point).");
+  }
+  const a = linkA; linkA = null;
+  setLinking(false);
+  checkLink(a, n, params());
+}
+function setLinking(on) {
+  linking = on; linkA = null;
+  $("link").classList.toggle("on", on);
+  map.getContainer().style.cursor = on ? "crosshair" : "";
+  if (on) { linkLayer.clearLayers(); status("Click the first node (or any point)."); }
+}
+const fmtM = m => (m < 1 ? `${Math.round(m * 100)} cm` : `${m.toFixed(1)} m`);
+async function checkLink(a, b, p) {
+  const dKm = Prop.distKm(a.lat, a.lon, b.lat, b.lon);
+  if (dKm < 0.05) return status("These two points are the same place.");
+  if (dKm > 200) return status("Too far apart (200 km max).");
+  status("Loading terrain…");
+  await prefetch((a.lat + b.lat) / 2, (a.lon + b.lon) / 2, dKm / 2 + 2);
+  const step = Math.max(STEP, (dKm * 1000) / 600), n = Math.round((dKm * 1000) / step), prof = new Float32Array(n + 1);
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    prof[i] = elevation(a.lat + (b.lat - a.lat) * t, a.lon + (b.lon - a.lon) * t);
+  }
+  const hA = a.h || p.txH, hB = b.h || p.txH, stepM = (dKm * 1000) / n;
+  const loss = Math.max(Prop.pathLoss(prof, stepM, p.f, hA, hB), Prop.pathLoss(Array.from(prof).reverse(), stepM, p.f, hB, hA)); // worst direction
+  const rx = p.eirp + p.nodeGain - loss, margin = rx - p.sens;
+  const free = Prop.fspl(dKm, p.f), extra = loss - free; // extra = terrain obstruction loss
+  const ok = margin >= 0, miss = Math.max(0, -margin);
+  const need = Prop.antennaSize(miss / 2 + p.nodeGain, p.f); // gain split between both ends
+  $("linkres").innerHTML = `<b style="color:${ok ? "#1e9e5a" : "#d33"}">${ok ? "✔ Connected" : "✘ Not connected"}</b> · ${dKm.toFixed(1)} km<br>` +
+    `Signal ${rx.toFixed(0)} dBm (needs ${p.sens} dBm) → margin <b>${margin >= 0 ? "+" : ""}${margin.toFixed(1)} dB</b><br>` +
+    `Loss ${loss.toFixed(0)} dB = free space ${free.toFixed(0)} dB + terrain ${Math.max(0, extra).toFixed(0)} dB<br>` +
+    (extra < 3 ? "Clear line of sight." : extra < 12 ? "Partly blocked by the terrain." : "Blocked by the terrain.") +
+    (ok ? "" : `<br>Missing ${miss.toFixed(0)} dB: with a ≈ ${(miss / 2 + p.nodeGain).toFixed(0)} dBi antenna at <i>each</i> end (Yagi ≈ ${need.yagiElements} el., ${fmtM(need.yagiBoom)}) it would work` +
+      (miss / 2 + p.nodeGain > 30 ? ", but that is unrealistic: raise the antennas or add a relay in between." : "."));
+  linkLayer.clearLayers();
+  L.polyline([[a.lat, a.lon], [b.lat, b.lon]], { color: ok ? "#1e9e5a" : "#d33", weight: 4, dashArray: ok ? null : "8 8" }).addTo(linkLayer);
+  for (const e of [a, b]) L.circleMarker([e.lat, e.lon], { radius: 9, color: "#ff2d95", weight: 3, fill: false }).addTo(linkLayer);
+  drawProfile(prof, stepM, p, hA, hB);
+  status("");
+}
+function drawProfile(prof, stepM, p, hA, hB) {
+  const cv = $("profile"), ctx = cv.getContext("2d"), W = cv.width, H = cv.height, n = prof.length - 1;
+  const hs = [prof[0] + hA, prof[n] + hB], lo = Math.min(...prof) - 20, hi = Math.max(...prof, ...hs) + 20;
+  const X = i => (i / n) * W, Y = h => H - ((h - lo) / (hi - lo)) * H;
+  ctx.clearRect(0, 0, W, H);
+  ctx.beginPath(); ctx.moveTo(0, H);
+  for (let i = 0; i <= n; i++) ctx.lineTo(X(i), Y(prof[i]));
+  ctx.lineTo(W, H); ctx.fillStyle = "#8a7a5c"; ctx.fill();
+  ctx.beginPath(); ctx.moveTo(0, Y(hs[0])); ctx.lineTo(W, Y(hs[1]));
+  ctx.strokeStyle = "#ff2d95"; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = "#888"; ctx.font = "11px system-ui";
+  ctx.fillText(`${Math.round(Math.max(...prof))} m`, 4, 12);
+}
+
 // ── Wiring ───────────────────────────────────────────────────────────────────
 $("freq").onchange = () => { const d = PRESETS[$("freq").value]; $("eirp").value = d.eirp; $("sens").value = d.sens; legend(Number($("freq").value)); };
 $("zones").onclick = () => computeZones(visibleNodes(), params());
 $("clear").onclick = () => { if (zoneLayer) map.removeLayer(zoneLayer); zoneLayer = grid = null; $("zonestats").textContent = ""; status(""); };
+$("link").onclick = () => setLinking(!linking);
 $("add").onclick = () => { adding = !adding; $("add").classList.toggle("on", adding); map.getContainer().style.cursor = adding ? "crosshair" : ""; status(adding ? "Click the map where your Skein node is." : ""); };
 $("export").onclick = () => { const t = JSON.stringify(localSkein(), null, 1); navigator.clipboard?.writeText(t); $("exported").value = t; status("Copied. Send it as a pull request to site/data/skein-nodes.json."); };
 $("routers").onchange = drawNodes;
@@ -201,6 +264,11 @@ Promise.all([fetch("data/meshtastic.json").then(r => r.json()), fetch("data/skei
 
 // Shareable view: ?view=lat,lon,zoom&zones=1 opens there (and computes the zones of the nodes in view).
 const q = new URLSearchParams(location.search);
+if (q.get("link")) {
+  const [a, b, c, d] = q.get("link").split(",").map(Number);
+  map.fitBounds([[a, b], [c, d]]);
+  setTimeout(() => checkLink({ lat: a, lon: b, kind: "point" }, { lat: c, lon: d, kind: "point" }, params()), 800);
+}
 if (q.get("view")) {
   const [la, lo, z] = q.get("view").split(",").map(Number);
   map.setView([la, lo], z || 9);

@@ -23,3 +23,4 @@ label.chk input { width: auto; margin: 0; } label.sub { margin-left: 26px; font-
 #zonestats { width: 100%; font-size: 12px; margin-top: 6px; border-collapse: collapse; } #zonestats td { padding: 2px 0; } #zonestats td:last-child { text-align: right; color: var(--mut); }
 details { margin: 12px 0; } summary { cursor: pointer; font-weight: 600; }
 textarea { width: 100%; padding: 6px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--tx); font: 11px monospace; }
+#linkbox { margin: 6px 0; } #linkres { color: var(--tx); } #profile { width: 100%; height: 70px; margin-top: 6px; border-radius: 6px; background: var(--card); border: 1px solid var(--line); }
