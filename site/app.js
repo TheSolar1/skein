@@ -84,7 +84,7 @@ async function computeZones(nodes, p) {
   const y0 = Math.min(...pts.map(q => q.y)) - reach, y1 = Math.max(...pts.map(q => q.y)) + reach;
   const W = Math.ceil((x1 - x0) / cellP), H = Math.ceil((y1 - y0) / cellP);
   if (W * H > MAX_CELLS) return status(`Area too large (${W}×${H} cells): zoom in or reduce the max distance.`);
-  const need = new Float32Array(W * H).fill(Infinity), rays = [];
+  const need = new Float32Array(W * H).fill(Infinity), rays = [], stock = [];
   for (let k = 0; k < nodes.length; k++) {
     const n = nodes[k];
     status(`Computing zones… node ${k + 1}/${nodes.length}`);
@@ -97,15 +97,16 @@ async function computeZones(nodes, p) {
         prof[i] = elevation(at[i][0], at[i][1]);
       }
       const loss = Prop.lossProfile(prof, STEP, p.f, n.h || p.txH, p.rxH), eirp = nodeEirp(n, p);
-      let reach = 0;
+      let reach = 0, reachStock = 0;
       for (let i = 1; i <= steps; i++) {
         const g = Math.max(0, p.sens - (eirp - loss[i]));
+        if (g <= 2.15) reachStock = i; // farthest point heard with the stock antenna
         if (g <= 30) reach = i; // farthest point on this radial that some antenna up to 30 dBi still hears // gain over 0 dBi needed at this point
         const q = crs.project(L.latLng(at[i][0], at[i][1]));
         const cx = Math.floor((q.x - x0) / cellP), cy = Math.floor((q.y - y0) / cellP);
         if (cx >= 0 && cx < W && cy >= 0 && cy < H && g < need[cy * W + cx]) need[cy * W + cx] = g;
       }
-      rays.push((reach * STEP) / 1000);
+      rays.push((reach * STEP) / 1000); stock.push((reachStock * STEP) / 1000);
     }
   }
   // Paint: one pixel per cell, north up.
@@ -128,8 +129,10 @@ async function computeZones(nodes, p) {
   grid = { need, W, H, x0, y0, cellP, crs, f: p.f, nodes: nodes.length };
   const km2 = count.map(n => (n * CELL * CELL) / 1e6);
   $("zonestats").innerHTML = Prop.GAIN_CLASSES.map((c, i) => `<tr><td><i style="background:${c.color}"></i>${c.label}</td><td>${Math.round(km2[i]).toLocaleString("en")} km²</td></tr>`).join("");
-  const total = km2.reduce((x, y) => x + y, 0), far = Math.max(...rays), mean = rays.reduce((x, y) => x + y, 0) / rays.length;
-  $("zonesize").innerHTML = `<b>Zone size</b>: ${Math.round(total).toLocaleString("en")} km² covered` + (nodes.length === 1 ? ` · reaches up to <b>${far.toFixed(1)} km</b> (average ${mean.toFixed(1)} km)` : ` by ${nodes.length} nodes · farthest point ${far.toFixed(1)} km from a node`);
+  const total = km2.reduce((x, y) => x + y, 0), avg = a => a.reduce((x, y) => x + y, 0) / a.length;
+  $("zonesize").innerHTML = `<b>Zone size</b>: ${Math.round(total).toLocaleString("en")} km² covered` + (nodes.length > 1 ? ` by ${nodes.length} nodes` : "") +
+    `<br>Stock antenna: up to <b>${Math.max(...stock).toFixed(1)} km</b> from a node (average ${avg(stock).toFixed(1)} km)` +
+    `<br>With a 30 dBi antenna: up to ${Math.max(...rays).toFixed(1)} km${Math.max(...rays) >= p.maxKm - 0.3 ? ` (limit of “Max distance”: ${p.maxKm} km)` : ""}`;
   status(`Zones from ${nodes.length} node${nodes.length > 1 ? "s" : ""}. Click anywhere to read the antenna needed.`);
   legend(p.f);
 }
@@ -155,7 +158,7 @@ function visibleNodes() {
 }
 function nodeDetails(n) {
   const sig = (n.signals || []).map(x => `${bandName(x.mhz)} ${x.dbm} dBm`).join(", ");
-  const ant = n.antenna ? `${Prop.ANTENNAS[n.antenna.type].label}${n.antenna.type === "dipole" ? "" : " " + fmtM(n.antenna.size)} (${antGain(n, 868).toFixed(1)} dBi at 868 MHz)` : "";
+  const ant = n.antenna ? `${Prop.ANTENNAS[n.antenna.type].label}${n.antenna.type === "dipole" ? "" : " " + fmtM(n.antenna.size)} (${(n.signals || [{ mhz: 868 }]).map(x => `${antGain(n, x.mhz).toFixed(1)} dBi at ${bandName(x.mhz)}`).join(", ")})` : "";
   return `<b>${n.kind === "skein" ? "Skein node" : "Meshtastic node"}</b><br>${n.role || ""}${n.hw ? " · " + n.hw : ""}<br>${n.lat.toFixed(4)}, ${n.lon.toFixed(4)}${n.h ? ` · ${n.h} m high` : ""}` +
     (ant ? `<br>Antenna: ${ant}` : "") + (sig ? `<br>Signals: ${sig}` : "") + (n.local ? `<br><button id="rm" class="small">Remove this node</button>` : "");
 }
@@ -163,6 +166,7 @@ function select(n, marker) {
   selectedMarker?.getElement()?.classList.remove("sel");
   selectedMarker = marker; marker.getElement()?.classList.add("sel");
   $("info").innerHTML = nodeDetails(n);
+  if (n.signals?.length && !n.signals.some(x => x.mhz === Number($("freq").value))) { $("freq").value = n.signals[0].mhz; $("freq").onchange(); } // show the zone on a band the node really uses
   if ($("rm")) $("rm").onclick = () => { store("skein_nodes_local", localSkein().filter(x => !(x.lat === n.lat && x.lon === n.lon))); skeinNodes = skeinNodes.filter(x => x !== n); drawNodes(); $("info").textContent = "Node removed."; };
   computeZones([n], params());
 }
