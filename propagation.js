@@ -47,6 +47,34 @@
     return fspl(D / 1000, fMHz) + (worst > -Infinity ? knifeEdge(worst) : 0);
   }
 
+  // Path loss to every sample of the profile (index i = receiver at i*stepM). Same model as pathLoss, O(n^2) total.
+  function lossProfile(profile, stepM, fMHz, txH, rxH) {
+    const lam = wavelength(fMHz), out = new Float32Array(profile.length), h0 = profile[0] + txH;
+    for (let i = 1; i < profile.length; i++) {
+      const D = i * stepM, h1 = profile[i] + rxH;
+      let worst = -Infinity;
+      for (let j = 1; j < i; j++) {
+        const d1 = j * stepM, d2 = D - d1;
+        const h = profile[j] + (d1 * d2) / (2 * R_EARTH) - (h0 + ((h1 - h0) * d1) / D);
+        const v = h * Math.sqrt((2 / lam) * (D / (d1 * d2)));
+        if (v > worst) worst = v;
+      }
+      out[i] = fspl(D / 1000, fMHz) + (worst > -Infinity ? knifeEdge(worst) : 0);
+    }
+    return out;
+  }
+
+  // Antenna classes for the colour-coded zones: the smallest antenna (by gain over an isotropic radiator) that hears the signal.
+  const GAIN_CLASSES = [
+    { max: 2.15, color: "#2ecc71", label: "Stock antenna (dipole / whip)" },
+    { max: 6, color: "#a4d916", label: "Omni 5 dBi" },
+    { max: 10, color: "#f4d03f", label: "Small Yagi" },
+    { max: 15, color: "#f39c12", label: "Medium Yagi" },
+    { max: 20, color: "#e74c3c", label: "Long Yagi or small dish" },
+    { max: 30, color: "#8e44ad", label: "Large dish" },
+  ];
+  const gainClass = g => GAIN_CLASSES.findIndex(c => g <= c.max); // -1 = out of reach
+
   // Received power in dBm.
   const rxPower = (eirpDbm, rxGainDbi, lossDb) => eirpDbm + rxGainDbi - lossDb;
 
@@ -60,15 +88,15 @@
     return {
       dipole: lam / 2, // half-wave dipole, ~2.15 dBi
       quarterWave: lam / 4,
-      // Yagi: gain ~ 7.5 + 2.5*log2(elements/3)... approximated: elements = 3 * 2^((gain-7.5)/2.5); boom ~ 0.4 lambda per element.
-      yagiElements: gainDbi <= 7.5 ? 3 : Math.min(60, Math.round(3 * 2 ** ((gainDbi - 7.5) / 2.5))),
-      yagiBoom: (gainDbi <= 7.5 ? 3 : Math.min(60, Math.round(3 * 2 ** ((gainDbi - 7.5) / 2.5)))) * 0.4 * lam,
+      // Yagi: gain ~ 7 + 3.5*log2(elements/3) dBi (3 el = 7, 7 el = 11, 15 el = 15, 30 el = 18.6), so elements = 3 * 2^((gain-7)/3.5); boom ~ 0.4 lambda per element.
+      yagiElements: gainDbi <= 7 ? 3 : Math.min(60, Math.round(3 * 2 ** ((gainDbi - 7) / 3.5))),
+      yagiBoom: (gainDbi <= 7 ? 3 : Math.min(60, Math.round(3 * 2 ** ((gainDbi - 7) / 3.5)))) * 0.4 * lam,
       // Parabolic dish with 55% efficiency: G = eta * (pi*D/lam)^2.
       dishDiameter: (lam / Math.PI) * Math.sqrt(g / 0.55),
     };
   }
 
-  const api = { C, wavelength, fspl, knifeEdge, distKm, destination, pathLoss, rxPower, neededGain, antennaSize };
+  const api = { C, wavelength, fspl, knifeEdge, distKm, destination, pathLoss, lossProfile, GAIN_CLASSES, gainClass, rxPower, neededGain, antennaSize };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.Prop = api;
 })(typeof self !== "undefined" ? self : this);

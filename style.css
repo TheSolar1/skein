@@ -10,3 +10,16 @@ input, select { display: block; width: 100%; margin-top: 4px; padding: 7px 9px; 
 .hint { color: var(--mut); font-size: 12px; }
 #map { flex: 1; }
 @media (max-width: 760px) { body { flex-direction: column-reverse; } aside { width: 100%; height: 45vh; border-right: 0; border-top: 1px solid var(--line); } #map { height: 55vh; flex: none; } }
+h2 { font-size: 14px; margin: 16px 0 6px; }
+.row { display: flex; gap: 8px; margin: 10px 0; } .row > * { flex: 1; }
+button { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--tx); font: inherit; cursor: pointer; }
+button.main, button.on { background: var(--ac); border-color: var(--ac); color: #fff; }
+label.chk { display: flex; align-items: center; gap: 8px; margin: 6px 0; color: var(--tx); }
+label.chk input { width: auto; margin: 0; } label.sub { margin-left: 26px; font-size: 12px; color: var(--mut); }
+.dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; border: 1.5px solid #fff; box-shadow: 0 0 0 1px var(--line); }
+#legend div { display: flex; align-items: center; gap: 6px; font-size: 12px; margin: 3px 0; flex-wrap: wrap; }
+#legend i, #zonestats i { width: 14px; height: 14px; border-radius: 3px; display: inline-block; flex: none; margin-right: 6px; vertical-align: middle; }
+#legend small { color: var(--mut); margin-left: auto; }
+#zonestats { width: 100%; font-size: 12px; margin-top: 6px; border-collapse: collapse; } #zonestats td { padding: 2px 0; } #zonestats td:last-child { text-align: right; color: var(--mut); }
+details { margin: 12px 0; } summary { cursor: pointer; font-weight: 600; }
+textarea { width: 100%; padding: 6px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--tx); font: 11px monospace; }
