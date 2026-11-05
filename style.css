@@ -1,19 +1,28 @@
-:root { --bg:#f6f7f9; --card:#fff; --line:#dde1e8; --tx:#1b1f27; --mut:#667085; --ac:#e4572e; }
-@media (prefers-color-scheme: dark) { :root { --bg:#14171c; --card:#1d2128; --line:#2c323c; --tx:#e7e9ee; --mut:#98a2b3; } }
+/* Look borrowed from VEX: green gradient, white cards with soft shadows, neutral black in dark mode. */
+:root { --bg:#f5f6f8; --card:#fff; --surface2:#f7f9fb; --line:#e2e6ec; --tx:#1c1e21; --mut:#65676b; --ac:#4fa553; --g1:#66bb6a; --g2:#388e3c; --alt:rgba(22,163,74,.10); --shadow:0 1px 3px rgba(0,0,0,.06),0 4px 14px rgba(0,0,0,.04); }
+@media (prefers-color-scheme: dark) { :root { --bg:#0a0a0a; --card:#151515; --surface2:#1c1c1c; --line:#2a2a2a; --tx:#e6e6e6; --mut:#a3a3a3; --ac:#43a047; --g1:#2e7d32; --g2:#1b5e20; --alt:rgba(67,160,71,.14); --shadow:0 1px 3px rgba(0,0,0,.4),0 4px 14px rgba(0,0,0,.3); } }
 * { box-sizing: border-box; }
-body { margin: 0; display: flex; height: 100vh; font: 14px/1.45 system-ui, sans-serif; background: var(--bg); color: var(--tx); }
-aside { width: 320px; padding: 16px; overflow-y: auto; border-right: 1px solid var(--line); flex: none; }
-h1 { font-size: 18px; margin: 0 0 8px; }
-label { display: block; margin: 10px 0; font-size: 13px; color: var(--mut); }
-input, select { display: block; width: 100%; margin-top: 4px; padding: 7px 9px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--tx); font: inherit; }
-.card { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--ac); border-radius: 8px; padding: 10px 12px; margin-top: 14px; }
+body { margin: 0; display: flex; height: 100vh; font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--tx); }
+aside { width: 340px; padding: 0 14px 16px; overflow-y: auto; border-right: 1px solid var(--line); flex: none; background: var(--bg); }
+h1 { font-size: 18px; margin: 0 -14px 10px; padding: 14px; color: #fff; background: linear-gradient(135deg, var(--g1), var(--g2)); box-shadow: var(--shadow); position: sticky; top: 0; z-index: 5; }
+aside > .hint:first-of-type a { display: block; padding: 9px 12px; border-radius: 8px; background: var(--alt); color: var(--ac); text-decoration: none; font-weight: 600; }
+aside > .hint:first-of-type a:hover { filter: brightness(.95); }
+label { display: block; margin: 10px 0; font-size: 13px; color: var(--mut); font-weight: 500; }
+input, select { display: block; width: 100%; margin-top: 4px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--tx); font: inherit; transition: border-color .2s, box-shadow .2s; }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--ac); box-shadow: 0 0 0 3px var(--alt); }
+input[type=checkbox], input[type=range] { accent-color: var(--ac); }
+.card { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--ac); border-radius: 12px; box-shadow: var(--shadow); padding: 10px 12px; margin-top: 14px; }
 .hint { color: var(--mut); font-size: 12px; }
 #map { flex: 1; }
 @media (max-width: 760px) { body { flex-direction: column-reverse; } aside { width: 100%; height: 45vh; border-right: 0; border-top: 1px solid var(--line); } #map { height: 55vh; flex: none; } }
 h2 { font-size: 14px; margin: 16px 0 6px; }
 .row { display: flex; gap: 8px; margin: 10px 0; } .row > * { flex: 1; }
-button { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--tx); font: inherit; cursor: pointer; }
-button.main, button.on { background: var(--ac); border-color: var(--ac); color: #fff; }
+button { padding: 9px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface2); color: var(--tx); font: inherit; font-weight: 600; cursor: pointer; transition: transform .15s, box-shadow .15s, filter .15s; }
+button:hover { filter: brightness(.96); }
+button:active { transform: translateY(1px); }
+button:disabled { opacity: .55; cursor: not-allowed; }
+button.main, button.on { background: linear-gradient(135deg, var(--g1), var(--g2)); border-color: transparent; color: #fff; }
+button.main:hover, button.on:hover { filter: none; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(76,175,80,.35); }
 label.chk { display: flex; align-items: center; gap: 8px; margin: 6px 0; color: var(--tx); }
 label.chk input { width: auto; margin: 0; } label.sub { margin-left: 26px; font-size: 12px; color: var(--mut); }
 .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; border: 1.5px solid #fff; box-shadow: 0 0 0 1px var(--line); }
@@ -27,3 +36,6 @@ textarea { width: 100%; padding: 6px; border-radius: 8px; border: 1px solid var(
 .ant { background: none; border: 0; filter: drop-shadow(0 0 2px #fff) drop-shadow(0 0 1px #fff); } .ant.sel { filter: drop-shadow(0 0 3px #ff2d95) drop-shadow(0 0 3px #ff2d95); }
 .pw { width: 64px !important; display: inline-block !important; margin: 0 !important; padding: 3px 6px !important; } button.small { padding: 3px 8px; font-size: 12px; margin-top: 6px; }
 .size:empty { display: none; } .size { border-left-color: #00a86b; font-size: 13px; }
+
+.aim { margin-top: 8px; padding: 8px; border-radius: 8px; background: var(--alt); }
+#status:not(:empty) { padding: 8px 10px; border-radius: 8px; background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--ac); box-shadow: var(--shadow); color: var(--tx); }
