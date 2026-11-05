@@ -10,8 +10,12 @@ pub trait Transport: Send + Sync {
     fn mtu(&self) -> usize;
     async fn send(&self, peer: &str, data: &[u8]) -> io::Result<()>;
     async fn recv(&self) -> io::Result<(String, Vec<u8>)>;
-    /// Neighbours to flood announcements to.
+    /// Neighbours we know about.
     fn peers(&self) -> Vec<String>;
+    /// Where a flooded packet is sent. A broadcast medium (radio) sends once to everyone instead of once per neighbour.
+    fn flood_peers(&self) -> Vec<String> {
+        self.peers()
+    }
 }
 
 pub struct Udp {

@@ -77,3 +77,18 @@ async fn bulk_transfer_across_a_relay() {
     assert_eq!(a.fetch(caddr, "/../secret").await, Err(FetchError::NotFound), "no escaping the shared folder");
     std::fs::remove_dir_all(&dir).ok();
 }
+
+#[test]
+fn session_keys_match_on_both_sides_and_reject_tampering() {
+    use skein::crypto::{session_key, session_open, session_seal};
+    let (a, b, c) = (Identity::generate(), Identity::generate(), Identity::generate());
+    let ka = session_key(a.xsecret(), &b.xpub(), &a.vk(), &b.vk());
+    let kb = session_key(b.xsecret(), &a.xpub(), &b.vk(), &a.vk());
+    assert_eq!(ka, kb);
+    assert_ne!(ka, session_key(c.xsecret(), &a.xpub(), &c.vk(), &a.vk()), "a third node must not share the key");
+    let ct = session_seal(&ka, 0, 7, b"hdr", b"payload");
+    assert_eq!(session_open(&kb, 0, 7, b"hdr", &ct).as_deref(), Some(&b"payload"[..]));
+    assert!(session_open(&kb, 1, 7, b"hdr", &ct).is_none(), "wrong direction");
+    assert!(session_open(&kb, 0, 8, b"hdr", &ct).is_none(), "wrong counter");
+    assert!(session_open(&kb, 0, 7, b"other", &ct).is_none(), "wrong header");
+}

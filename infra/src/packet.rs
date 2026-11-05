@@ -6,6 +6,8 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 pub const KIND_ANNOUNCE: u8 = 1;
 pub const KIND_NAME: u8 = 2;
 pub const KIND_DATA: u8 = 3;
+/// Compact data packet for radio links: 8-byte counter + AEAD under a session key (no signature, no ephemeral key).
+pub const KIND_SESSION: u8 = 4;
 pub const DEFAULT_TTL: u8 = 16;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

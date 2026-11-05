@@ -20,8 +20,11 @@ Early skeleton. What works today is tested; what does not exist yet is listed ho
 - Browser access with no setup: open `http://NAME.skein.localhost:8080/` (browsers resolve `*.localhost` to your own machine).
 - Runs as a normal user: no admin rights, no drivers, no special licence (UDP sockets only).
 
+- **Meshtastic transport** (`--mesh radio-host:4403`): Skein packets ride in Meshtastic `PRIVATE_APP` payloads through the radio's TCP stream API. On radio links Skein switches to **compact session packets** (key derived from both nodes' static keys, no per-packet signature): about 70 bytes of overhead, so ~150 bytes of file data per 233-byte radio packet instead of ~13. Tested against a fake radio network (30 KB transfer, every payload ≤ 233 bytes); **not yet tested on real hardware**.
+
 **Not done yet**
-- **Meshtastic (LoRa) and BitChat (Bluetooth) transports.** The `Transport` trait is the plug-in point (see `infra/src/transport.rs`); only UDP exists. Chunk sizes already adapt to each link's MTU, but over LoRa (~230 bytes per packet) the per-packet overhead (~200 bytes today: signature, sealed box, header) would leave almost no room. A compact radio mode with session keys is the planned fix.
+- **BitChat (Bluetooth) transport**, and Meshtastic over USB serial / BLE (same framing; for now bridge serial to TCP).
+- Radio airtime and duty-cycle management beyond a fixed pacing between packets (the radio firmware enforces the legal limits).
 - Route expiry / link-failure detection, congestion control, a hop-count-only metric.
 - The map does not yet show Skein nodes, only existing masts.
 

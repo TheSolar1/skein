@@ -1,5 +1,5 @@
 //! A Skein node: signed announcements -> routes, name gossip, encrypted request/response with chunked bulk transfer.
-use crate::crypto::{open, seal};
+use crate::crypto::{open, seal, session_key, session_open, session_seal};
 use crate::identity::{addr_of, verify, Addr, Identity};
 use crate::naming::{valid_name, NameRecord, Names};
 use crate::packet::*;
@@ -10,13 +10,16 @@ use std::{
     collections::HashMap,
     fmt,
     path::{Component, Path, PathBuf},
-    sync::{Arc, Mutex},
+    sync::{atomic::{AtomicU64, Ordering}, Arc, Mutex},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 const MAX_FILE: u64 = 512 << 20;
 /// Bytes of a chunk message that are not file data: packet header, sealed box, signature, key, framing.
 const OVERHEAD: usize = 220;
+/// Radio links (below this MTU) use compact session packets: header 34 + counter 8 + tag 16 + message framing.
+const RADIO_MTU: usize = 1000;
+const OVERHEAD_SESSION: usize = 80;
 
 #[derive(Debug, PartialEq)]
 pub enum FetchError {
@@ -52,6 +55,10 @@ pub struct Node {
     site: Mutex<Option<PathBuf>>,
     incoming: Mutex<HashMap<u32, Reasm>>,
     served: Mutex<HashMap<(Addr, u32), (Instant, Vec<Vec<u8>>)>>,
+    sess_tx: Mutex<HashMap<Addr, u64>>,
+    /// Per peer: highest counter seen and a bitmap of the 64 before it (replay protection).
+    sess_rx: Mutex<HashMap<Addr, (u64, u64)>>,
+    radio_pace_ms: AtomicU64,
 }
 
 fn now_secs() -> u64 {
@@ -69,6 +76,9 @@ impl Node {
             site: Default::default(),
             incoming: Default::default(),
             served: Default::default(),
+            sess_tx: Default::default(),
+            sess_rx: Default::default(),
+            radio_pace_ms: AtomicU64::new(300),
         })
     }
 
@@ -144,7 +154,7 @@ impl Node {
     /// Send to every neighbour on every transport, except `except`.
     async fn flood(&self, p: &Packet, except: Option<&Link>) {
         for (i, t) in self.transports.iter().enumerate() {
-            for peer in t.peers() {
+            for peer in t.flood_peers() {
                 let link = Link { transport: i, peer };
                 if Some(&link) != except {
                     self.raw_send(&link, p).await;
@@ -193,7 +203,8 @@ impl Node {
                 }
             }
             KIND_DATA if p.dst == self.id.addr() => self.receive_data(p).await,
-            KIND_DATA if p.ttl > 1 => {
+            KIND_SESSION if p.dst == self.id.addr() => self.receive_session(p).await,
+            KIND_DATA | KIND_SESSION if p.ttl > 1 => {
                 let next = self.routes.lock().unwrap().0.get(&p.dst).map(|r| r.link.clone());
                 if let Some(next) = next {
                     self.raw_send(&next, &Packet { ttl: p.ttl - 1, ..p }).await;
@@ -205,11 +216,28 @@ impl Node {
 
     // ── Data plane: end-to-end encrypted and signed ──────────────────────────
     async fn send_msg(&self, dst: Addr, msg: &Msg) -> Result<usize, FetchError> {
-        let (link, xpub) = {
+        let (link, xpub, vk) = {
             let r = self.routes.lock().unwrap();
             let route = r.0.get(&dst).ok_or(FetchError::NoRoute)?;
-            (route.link.clone(), route.xpub)
+            (route.link.clone(), route.xpub, route.vk)
         };
+        let mtu = self.transports[link.transport].mtu();
+        if mtu < RADIO_MTU {
+            // Radio link: every byte counts. No signature or ephemeral key per packet; an AEAD key derived from both
+            // static keys authenticates the pair, and a strictly increasing counter (seeded from the clock) stops replays.
+            let src = self.id.addr();
+            let ctr = {
+                let mut t = self.sess_tx.lock().unwrap();
+                let c = t.entry(dst).or_insert_with(|| SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0));
+                *c += 1;
+                *c
+            };
+            let key = session_key(self.id.xsecret(), &xpub, &self.id.vk(), &vk);
+            let mut body = ctr.to_be_bytes().to_vec();
+            body.extend(session_seal(&key, (src > dst) as u8, ctr, &aad(&src, &dst, 0), &enc(msg)));
+            self.raw_send(&link, &Packet { kind: KIND_SESSION, ttl: DEFAULT_TTL, id: 0, src, dst, body }).await;
+            return Ok(mtu);
+        }
         let (src, id) = (self.id.addr(), OsRng.next_u32());
         let aad = aad(&src, &dst, id);
         let msg = enc(msg);
@@ -226,26 +254,82 @@ impl Node {
             return;
         }
         let Some(msg) = dec::<Msg>(&inner.msg) else { return };
+        self.dispatch(p.src, msg).await;
+    }
+
+    async fn receive_session(self: Arc<Self>, p: Packet) {
+        if p.body.len() < 8 + 16 {
+            return;
+        }
+        let ctr = u64::from_be_bytes(p.body[..8].try_into().unwrap());
+        let (xpub, vk) = match self.routes.lock().unwrap().0.get(&p.src) {
+            Some(r) => (r.xpub, r.vk),
+            None => return, // we have not heard its announcement yet
+        };
+        let key = session_key(self.id.xsecret(), &xpub, &self.id.vk(), &vk);
+        let Some(plain) = session_open(&key, (p.src > p.dst) as u8, ctr, &aad(&p.src, &p.dst, 0), &p.body[8..]) else { return };
+        if !self.fresh_counter(p.src, ctr) {
+            return;
+        }
+        let Some(msg) = dec::<Msg>(&plain) else { return };
+        self.dispatch(p.src, msg).await;
+    }
+
+    /// Sliding-window replay check: true the first time a counter is seen (and not older than 64 behind the newest).
+    fn fresh_counter(&self, src: Addr, ctr: u64) -> bool {
+        let mut w = self.sess_rx.lock().unwrap();
+        let e = w.entry(src).or_insert((0, 0));
+        if ctr > e.0 {
+            let shift = ctr - e.0;
+            e.1 = if shift >= 64 { 0 } else { e.1 << shift };
+            e.1 |= 1;
+            e.0 = ctr;
+            true
+        } else {
+            let off = e.0 - ctr;
+            if off >= 64 || (e.1 >> off) & 1 == 1 {
+                return false;
+            }
+            e.1 |= 1 << off;
+            true
+        }
+    }
+
+    async fn pace(&self, mtu: usize) {
+        let ms = self.radio_pace_ms.load(Ordering::Relaxed);
+        if mtu < RADIO_MTU && ms > 0 {
+            tokio::time::sleep(Duration::from_millis(ms)).await;
+        }
+    }
+
+    /// Delay between packets on radio links (default 300 ms; the radio's own duty-cycle limits still apply).
+    pub fn set_radio_pace(&self, d: Duration) {
+        self.radio_pace_ms.store(d.as_millis() as u64, Ordering::Relaxed);
+    }
+
+    async fn dispatch(self: Arc<Self>, src: Addr, msg: Msg) {
         match msg {
             Msg::Get { req, path } => {
-                tokio::spawn(async move { self.serve(p.src, req, path).await });
+                tokio::spawn(async move { self.serve(src, req, path).await });
             }
             Msg::Resend { req, missing } => {
-                let chunks = self.served.lock().unwrap().get(&(p.src, req)).map(|(_, c)| c.clone());
+                let chunks = self.served.lock().unwrap().get(&(src, req)).map(|(_, c)| c.clone());
                 if let Some(chunks) = chunks {
                     for idx in missing.into_iter().filter(|i| (*i as usize) < chunks.len()).take(200) {
                         let m = Msg::Chunk { req, idx, total: chunks.len() as u32, data: chunks[idx as usize].clone() };
-                        let _ = self.send_msg(p.src, &m).await;
+                        if let Ok(mtu) = self.send_msg(src, &m).await {
+                            self.pace(mtu).await;
+                        }
                     }
                 }
             }
             Msg::NotFound { req } => {
-                if let Some(r) = self.incoming.lock().unwrap().get_mut(&req).filter(|r| r.from == p.src) {
+                if let Some(r) = self.incoming.lock().unwrap().get_mut(&req).filter(|r| r.from == src) {
                     r.not_found = true;
                 }
             }
             Msg::Chunk { req, idx, total, data } => {
-                if let Some(r) = self.incoming.lock().unwrap().get_mut(&req).filter(|r| r.from == p.src) {
+                if let Some(r) = self.incoming.lock().unwrap().get_mut(&req).filter(|r| r.from == src) {
                     if r.chunks.is_empty() && total > 0 && total <= 1 << 22 {
                         r.total = total;
                         r.chunks = vec![None; total as usize];
@@ -289,7 +373,7 @@ impl Node {
             return;
         };
         let Ok(mtu) = self.mtu_to(&to) else { return };
-        let size = mtu.saturating_sub(OVERHEAD).max(16);
+        let size = mtu.saturating_sub(if mtu < RADIO_MTU { OVERHEAD_SESSION } else { OVERHEAD }).max(16);
         let mut chunks: Vec<Vec<u8>> = data.chunks(size).map(<[u8]>::to_vec).collect();
         if chunks.is_empty() {
             chunks.push(vec![]);
@@ -304,6 +388,7 @@ impl Node {
             if self.send_msg(to, &Msg::Chunk { req, idx: i as u32, total, data: c }).await.is_err() {
                 return;
             }
+            self.pace(mtu).await;
             if i % 32 == 31 {
                 tokio::time::sleep(Duration::from_millis(2)).await; // gentle pacing; lost chunks are re-requested
             }
@@ -328,6 +413,8 @@ impl Node {
     async fn fetch_inner(&self, dst: Addr, req: u32, path: &str) -> Result<Vec<u8>, FetchError> {
         self.send_msg(dst, &Msg::Get { req, path: path.into() }).await?;
         let deadline = Instant::now() + Duration::from_secs(120);
+        // A Resend message must fit in one packet: about 3 bytes per missing index.
+        let limit = self.mtu_to(&dst).map(|m| if m < RADIO_MTU { (m.saturating_sub(100) / 3).clamp(4, 150) } else { 150 }).unwrap_or(150);
         loop {
             tokio::time::sleep(Duration::from_millis(100)).await;
             let missing = {
@@ -343,7 +430,7 @@ impl Node {
                     continue;
                 }
                 r.progress = Instant::now();
-                (0..r.total).filter(|i| r.chunks[*i as usize].is_none()).take(150).collect::<Vec<_>>()
+                (0..r.total).filter(|i| r.chunks[*i as usize].is_none()).take(limit).collect::<Vec<_>>()
             };
             if Instant::now() > deadline {
                 return Err(FetchError::Timeout);

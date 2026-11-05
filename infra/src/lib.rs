@@ -2,6 +2,7 @@
 pub mod crypto;
 pub mod gateway;
 pub mod identity;
+pub mod meshtastic;
 pub mod naming;
 pub mod node;
 pub mod packet;
