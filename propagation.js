@@ -98,11 +98,11 @@
 
   // Antenna types the map lets you pick. `size` is the physical dimension in metres (see `sizeLabel`).
   const ANTENNAS = {
-    dipole: { label: "Dipole / whip", sizeLabel: "fixed (half wave)" },
-    omni: { label: "Omni collinear", sizeLabel: "length (m)" },
-    yagi: { label: "Yagi", sizeLabel: "boom length (m)" },
-    panel: { label: "Patch panel", sizeLabel: "side (m)" },
-    dish: { label: "Dish", sizeLabel: "diameter (m)" },
+    dipole: { label: "Dipole / whip (omni)", sizeLabel: "fixed (half wave)", directional: false },
+    omni: { label: "Omni collinear", sizeLabel: "length (m)", directional: false },
+    yagi: { label: "Yagi (directional)", sizeLabel: "boom length (m)", directional: true },
+    panel: { label: "Sector / patch panel (directional)", sizeLabel: "side (m)", directional: true },
+    dish: { label: "Dish (directional)", sizeLabel: "diameter (m)", directional: true },
   };
   // Gain (dBi) of an antenna of the given type and size at fMHz. Rule-of-thumb formulas, inverse of antennaSize for Yagi and dish.
   function antennaGain(type, size, fMHz) {
@@ -119,7 +119,35 @@
     }
   }
 
-  const api = { ANTENNAS, antennaGain, C, wavelength, fspl, knifeEdge, distKm, destination, pathLoss, lossProfile, GAIN_CLASSES, gainClass, rxPower, neededGain, antennaSize };
+  // Directional antennas: horizontal beamwidth (degrees, -3 dB) from the gain, and the loss off the beam axis.
+  function beamwidth(type, gainDbi) {
+    const g = 10 ** (gainDbi / 10);
+    if (type === "yagi" || type === "dish") return Math.min(180, Math.sqrt(41253 / g)); // pencil beam: BWh ~ BWv
+    if (type === "panel") return Math.min(120, Math.max(30, 41253 / (g * 25))); // sector: ~25 degrees vertical
+    return 360; // dipole, omni
+  }
+  const angDiff = (a, b) => Math.abs(((a - b + 540) % 360) - 180); // 0..180
+  // Gain (dBi) of an antenna {type, size, azimuth} toward a bearing: peak gain minus a parabolic roll-off (3 dB at half the beamwidth, 25 dB at most).
+  function gainToward(ant, fMHz, bearingDeg) {
+    const g = antennaGain(ant.type, ant.size, fMHz), bw = beamwidth(ant.type, g);
+    if (bw >= 360) return g;
+    return g - Math.min(12 * (angDiff(bearingDeg, ant.azimuth || 0) / bw) ** 2, 25);
+  }
+  const bearing = (lat1, lon1, lat2, lon2) => {
+    const p1 = toRad(lat1), p2 = toRad(lat2), dl = toRad(lon2 - lon1);
+    return ((Math.atan2(Math.sin(dl) * Math.cos(p2), Math.cos(p1) * Math.sin(p2) - Math.sin(p1) * Math.cos(p2) * Math.cos(dl)) * 180) / Math.PI + 360) % 360;
+  };
+
+  // Signal quality classes (link margin in dB above the receiver sensitivity): how reliable the reception is.
+  const QUALITY_CLASSES = [
+    { min: 20, color: "#1a9850", label: "Excellent", range: "≥ 20 dB margin: very reliable" },
+    { min: 10, color: "#91cf60", label: "Good", range: "10–20 dB: reliable" },
+    { min: 3, color: "#fee08b", label: "Fair", range: "3–10 dB: works, can drop in bad weather" },
+    { min: 0, color: "#fc8d59", label: "Marginal", range: "0–3 dB: unreliable" },
+  ];
+  const qualityClass = margin => QUALITY_CLASSES.findIndex(c => margin >= c.min); // -1 = not heard
+
+  const api = { beamwidth, gainToward, bearing, QUALITY_CLASSES, qualityClass, ANTENNAS, antennaGain, C, wavelength, fspl, knifeEdge, distKm, destination, pathLoss, lossProfile, GAIN_CLASSES, gainClass, rxPower, neededGain, antennaSize };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.Prop = api;
 })(typeof self !== "undefined" ? self : this);

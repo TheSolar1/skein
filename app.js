@@ -58,14 +58,22 @@ function elevation(lat, lon) {
 // ── Parameters ───────────────────────────────────────────────────────────────
 const params = () => ({
   f: Number($("freq").value), eirp: Number($("eirp").value), sens: Number($("sens").value),
-  nodeGain: Number($("ngain").value), rxH: Number($("rxh").value), maxKm: Number($("maxkm").value), txH: Number($("txh").value),
+  nodeGain: Number($("ngain").value), rxg: Number($("rxg").value), rxH: Number($("rxh").value), maxKm: Number($("maxkm").value), txH: Number($("txh").value),
 });
 // A node's antenna gain at frequency f (null if unknown), and its EIRP on that band (null = it does not transmit there).
 const antGain = (n, f) => (n.antenna ? Prop.antennaGain(n.antenna.type, n.antenna.size, f) : null);
-function nodeEirp(n, p) {
+// `bearing` (degrees) makes the gain depend on where a directional antenna points; omit it for the peak gain.
+function nodeEirp(n, p, bearing = null) {
   if (!n.signals) return p.eirp; // Meshtastic nodes and bare points: use the panel value
   const s = n.signals.find(x => x.mhz === p.f);
-  return s ? s.dbm + (antGain(n, p.f) ?? 0) : null;
+  if (!s) return null;
+  return s.dbm + (n.antenna ? (bearing === null ? antGain(n, p.f) : Prop.gainToward(n.antenna, p.f, bearing)) : 0);
+}
+const antGainToward = (n, f, bearing) => (n.antenna ? Prop.gainToward(n.antenna, f, bearing) : null);
+// EIRP of each end toward the other, and the receive gain of each end toward the other (directional antennas included).
+function hopGains(a, b, f, p) {
+  const q = { ...p, f }, ab = Prop.bearing(a.lat, a.lon, b.lat, b.lon), ba = (ab + 180) % 360;
+  return { eA: nodeEirp(a, q, ab) ?? p.eirp, eB: nodeEirp(b, q, ba) ?? p.eirp, gA: antGainToward(a, f, ab) ?? p.nodeGain, gB: antGainToward(b, f, ba) ?? p.nodeGain };
 }
 const BANDS = [868, 433, 2400];
 const bandName = f => (f === 2400 ? "2.4 GHz" : f + " MHz");
@@ -84,7 +92,7 @@ async function computeZones(nodes, p) {
   const y0 = Math.min(...pts.map(q => q.y)) - reach, y1 = Math.max(...pts.map(q => q.y)) + reach;
   const W = Math.ceil((x1 - x0) / cellP), H = Math.ceil((y1 - y0) / cellP);
   if (W * H > MAX_CELLS) return status(`Area too large (${W}×${H} cells): zoom in or reduce the max distance.`);
-  const need = new Float32Array(W * H).fill(Infinity), rays = [], stock = [];
+  const base = new Float32Array(W * H).fill(-Infinity), rays = [], stock = []; // base = best margin (dB) with a 0 dBi receiving antenna
   for (let k = 0; k < nodes.length; k++) {
     const n = nodes[k];
     status(`Computing zones… node ${k + 1}/${nodes.length}`);
@@ -96,48 +104,59 @@ async function computeZones(nodes, p) {
         at[i] = Prop.destination(n.lat, n.lon, b, (i * STEP) / 1000);
         prof[i] = elevation(at[i][0], at[i][1]);
       }
-      const loss = Prop.lossProfile(prof, STEP, p.f, n.h || p.txH, p.rxH), eirp = nodeEirp(n, p);
+      const loss = Prop.lossProfile(prof, STEP, p.f, n.h || p.txH, p.rxH), eirp = nodeEirp(n, p, b); // a directional antenna radiates less off its axis
       let reach = 0, reachStock = 0;
       for (let i = 1; i <= steps; i++) {
-        const g = Math.max(0, p.sens - (eirp - loss[i]));
-        if (g <= 2.15) reachStock = i; // farthest point heard with the stock antenna
-        if (g <= 30) reach = i; // farthest point on this radial that some antenna up to 30 dBi still hears // gain over 0 dBi needed at this point
+        const m = eirp - loss[i] - p.sens;
+        if (m >= -2.15) reachStock = i; // farthest point heard with the stock antenna
+        if (m >= -30) reach = i; // farthest point that some antenna up to 30 dBi still hears
         const q = crs.project(L.latLng(at[i][0], at[i][1]));
         const cx = Math.floor((q.x - x0) / cellP), cy = Math.floor((q.y - y0) / cellP);
-        if (cx >= 0 && cx < W && cy >= 0 && cy < H && g < need[cy * W + cx]) need[cy * W + cx] = g;
+        if (cx >= 0 && cx < W && cy >= 0 && cy < H && m > base[cy * W + cx]) base[cy * W + cx] = m;
       }
       rays.push((reach * STEP) / 1000); stock.push((reachStock * STEP) / 1000);
     }
   }
-  // Paint: one pixel per cell, north up.
+  grid = { base, W, H, x0, y0, cellP, crs, f: p.f, nodes: nodes.length, rays, stock, maxKm: p.maxKm };
+  paintZones();
+  status(`Zones from ${nodes.length} node${nodes.length > 1 ? "s" : ""}. Click anywhere to read the signal there.`);
+}
+
+// Colour the grid: by the antenna you need, or by how good the signal is with your receiving antenna.
+function paintZones() {
+  if (!grid) return;
+  const { base, W, H, x0, y0, cellP, crs, rays, stock } = grid, quality = $("colorby").value === "quality", rxg = Number($("rxg").value);
+  const classes = quality ? Prop.QUALITY_CLASSES : Prop.GAIN_CLASSES;
+  const cls = m => (quality ? Prop.qualityClass(m + rxg) : Prop.gainClass(Math.max(0, -m)));
   const cv = document.createElement("canvas");
   cv.width = W; cv.height = H;
   const ctx = cv.getContext("2d"), img = ctx.createImageData(W, H);
-  const rgb = Prop.GAIN_CLASSES.map(c => [1, 3, 5].map(i => parseInt(c.color.slice(i, i + 2), 16)));
+  const rgb = classes.map(c => [1, 3, 5].map(i => parseInt(c.color.slice(i, i + 2), 16)));
   const count = new Array(rgb.length).fill(0);
   for (let cy = 0; cy < H; cy++) for (let cx = 0; cx < W; cx++) {
-    const c = Prop.gainClass(need[cy * W + cx]);
+    const c = cls(base[cy * W + cx]);
     if (c < 0) continue;
     count[c]++;
-    const o = ((H - 1 - cy) * W + cx) * 4;
-    img.data.set([...rgb[c], 150], o);
+    img.data.set([...rgb[c], 150], ((H - 1 - cy) * W + cx) * 4);
   }
   ctx.putImageData(img, 0, 0);
   const sw = crs.unproject(L.point(x0, y0)), ne = crs.unproject(L.point(x0 + W * cellP, y0 + H * cellP));
   if (zoneLayer) map.removeLayer(zoneLayer);
   zoneLayer = L.imageOverlay(cv.toDataURL(), L.latLngBounds(sw, ne), { opacity: 1, interactive: false }).addTo(map);
-  grid = { need, W, H, x0, y0, cellP, crs, f: p.f, nodes: nodes.length };
   const km2 = count.map(n => (n * CELL * CELL) / 1e6);
-  $("zonestats").innerHTML = Prop.GAIN_CLASSES.map((c, i) => `<tr><td><i style="background:${c.color}"></i>${c.label}</td><td>${Math.round(km2[i]).toLocaleString("en")} km²</td></tr>`).join("");
+  $("zonestats").innerHTML = classes.map((c, i) => `<tr><td><i style="background:${c.color}"></i>${c.label}</td><td>${Math.round(km2[i]).toLocaleString("en")} km²</td></tr>`).join("");
   const total = km2.reduce((x, y) => x + y, 0), avg = a => a.reduce((x, y) => x + y, 0) / a.length;
-  $("zonesize").innerHTML = `<b>Zone size</b>: ${Math.round(total).toLocaleString("en")} km² covered` + (nodes.length > 1 ? ` by ${nodes.length} nodes` : "") +
+  $("zonesize").innerHTML = `<b>Zone size</b>: ${Math.round(total).toLocaleString("en")} km² ${quality ? `heard with a ${rxg} dBi antenna` : "covered"}` + (grid.nodes > 1 ? ` by ${grid.nodes} nodes` : "") +
     `<br>Stock antenna: up to <b>${Math.max(...stock).toFixed(1)} km</b> from a node (average ${avg(stock).toFixed(1)} km)` +
-    `<br>With a 30 dBi antenna: up to ${Math.max(...rays).toFixed(1)} km${Math.max(...rays) >= p.maxKm - 0.3 ? ` (limit of “Max distance”: ${p.maxKm} km)` : ""}`;
-  status(`Zones from ${nodes.length} node${nodes.length > 1 ? "s" : ""}. Click anywhere to read the antenna needed.`);
-  legend(p.f);
+    `<br>With a 30 dBi antenna: up to ${Math.max(...rays).toFixed(1)} km${Math.max(...rays) >= grid.maxKm - 0.3 ? ` (limit of “Max distance”: ${grid.maxKm} km)` : ""}`;
+  legend(grid.f);
 }
 
 function legend(f) {
+  if ($("colorby").value === "quality") {
+    $("legend").innerHTML = Prop.QUALITY_CLASSES.map(c => `<div><i style="background:${c.color}"></i><b>${c.label}</b><small>${c.range}</small></div>`).join("");
+    return;
+  }
   $("legend").innerHTML = Prop.GAIN_CLASSES.map(c => {
     const a = Prop.antennaSize(c.max, f), cm = m => (m < 1 ? `${Math.round(m * 100)} cm` : `${m.toFixed(1)} m`);
     const size = c.max <= 2.15 ? `${cm(a.dipole)} dipole` : c.max <= 6 ? `~${cm(a.dipole * 3)} omni` : c.max <= 15 ? `Yagi ${a.yagiElements} el., ${cm(a.yagiBoom)}` : `dish ${cm(a.dishDiameter)}`;
@@ -158,7 +177,7 @@ function visibleNodes() {
 }
 function nodeDetails(n) {
   const sig = (n.signals || []).map(x => `${bandName(x.mhz)} ${x.dbm} dBm`).join(", ");
-  const ant = n.antenna ? `${Prop.ANTENNAS[n.antenna.type].label}${n.antenna.type === "dipole" ? "" : " " + fmtM(n.antenna.size)} (${(n.signals || [{ mhz: 868 }]).map(x => `${antGain(n, x.mhz).toFixed(1)} dBi at ${bandName(x.mhz)}`).join(", ")})` : "";
+  const ant = n.antenna ? `${Prop.ANTENNAS[n.antenna.type].label}${n.antenna.type === "dipole" ? "" : " " + fmtM(n.antenna.size)}${Prop.ANTENNAS[n.antenna.type].directional ? `, pointing ${n.antenna.azimuth || 0}°` : ""} (${(n.signals || [{ mhz: 868 }]).map(x => `${antGain(n, x.mhz).toFixed(1)} dBi at ${bandName(x.mhz)}`).join(", ")})` : "";
   return `<b>${n.kind === "skein" ? "Skein node" : "Meshtastic node"}</b><br>${n.role || ""}${n.hw ? " · " + n.hw : ""}<br>${n.lat.toFixed(4)}, ${n.lon.toFixed(4)}${n.h ? ` · ${n.h} m high` : ""}` +
     (ant ? `<br>Antenna: ${ant}` : "") + (sig ? `<br>Signals: ${sig}` : "") + (n.local ? `<br><button id="rm" class="small">Remove this node</button>` : "");
 }
@@ -195,12 +214,19 @@ map.on("click", ev => {
   }
   if (!grid) return status("Click a node, or press “Zones for nodes in view”, first.");
   const q = grid.crs.project(ev.latlng), cx = Math.floor((q.x - grid.x0) / grid.cellP), cy = Math.floor((q.y - grid.y0) / grid.cellP);
-  const g = cx >= 0 && cx < grid.W && cy >= 0 && cy < grid.H ? grid.need[cy * grid.W + cx] : Infinity, c = Prop.gainClass(g);
-  const a = Prop.antennaSize(g, grid.f), cm = m => (m < 1 ? `${Math.round(m * 100)} cm` : `${m.toFixed(1)} m`);
-  L.popup().setLatLng(ev.latlng).setContent(c < 0
-    ? "<b>Out of reach</b><br>No antenna up to 30 dBi hears these nodes here (terrain or distance)."
-    : `<b>${Prop.GAIN_CLASSES[c].label}</b><br>needs ≈ ${g.toFixed(1)} dBi` +
-      (g > 2.15 ? `<br>Yagi ≈ ${a.yagiElements} elements, boom ${cm(a.yagiBoom)}<br>or dish ≈ ${cm(a.dishDiameter)}` : `<br>A ${cm(a.dipole)} dipole is enough.`)).openOn(map);
+  const m = cx >= 0 && cx < grid.W && cy >= 0 && cy < grid.H ? grid.base[cy * grid.W + cx] : -Infinity, g = Math.max(0, -m);
+  const cm = x => (x < 1 ? `${Math.round(x * 100)} cm` : `${x.toFixed(1)} m`), a = Prop.antennaSize(g, grid.f), rxg = Number($("rxg").value);
+  let html;
+  if (!(m > -30)) html = "<b>Out of reach</b><br>No antenna up to 30 dBi hears these nodes here (terrain, distance, or behind a directional antenna).";
+  else if ($("colorby").value === "quality") {
+    const c = Prop.qualityClass(m + rxg);
+    html = c < 0 ? `<b>Not heard</b> with a ${rxg} dBi antenna<br>You need ≈ ${g.toFixed(1)} dBi (Yagi ≈ ${a.yagiElements} el., ${cm(a.yagiBoom)})`
+      : `<b>${Prop.QUALITY_CLASSES[c].label}</b> · margin ${(m + rxg).toFixed(1)} dB<br>with a ${rxg} dBi receiving antenna`;
+  } else {
+    const c = Prop.gainClass(g);
+    html = `<b>${Prop.GAIN_CLASSES[c].label}</b><br>needs ≈ ${g.toFixed(1)} dBi` + (g > 2.15 ? `<br>Yagi ≈ ${a.yagiElements} elements, boom ${cm(a.yagiBoom)}<br>or dish ≈ ${cm(a.dishDiameter)}` : `<br>A ${cm(a.dipole)} dipole is enough.`);
+  }
+  L.popup().setLatLng(ev.latlng).setContent(html).openOn(map);
 });
 
 // ── Link check: can two nodes talk to each other? ────────────────────────────
@@ -239,9 +265,7 @@ async function checkLink(a, b, p) {
   const rows = [];
   for (const f of common) {
     const loss = Math.max(Prop.pathLoss(prof, stepM, f, hA, hB), Prop.pathLoss(rev, stepM, f, hB, hA)); // worst direction
-    const q = { ...p, f }, sens = PRESETS[f]?.sens ?? p.sens;
-    const gA = antGain(a, f) ?? p.nodeGain, gB = antGain(b, f) ?? p.nodeGain;
-    const eA = nodeEirp(a, q) ?? p.eirp, eB = nodeEirp(b, q) ?? p.eirp;
+    const sens = PRESETS[f]?.sens ?? p.sens, { eA, eB, gA, gB } = hopGains(a, b, f, p);
     const margin = Math.min(eA + gB - loss, eB + gA - loss) - sens, free = Prop.fspl(dKm, f);
     rows.push({ f, loss, free, margin, ok: margin >= 0, gA, gB });
   }
@@ -275,17 +299,20 @@ function drawProfile(prof, stepM, p, hA, hB) {
 }
 
 // ── Node form: antenna type + length, several signals ───────────────────────
-const antennaForm = () => ({ type: $("atype").value, size: Number($("asize").value) || 0 });
+const antennaForm = () => ({ type: $("atype").value, size: Number($("asize").value) || 0, azimuth: Number($("aaz").value) || 0 });
 const signalsForm = () => BANDS.filter(f => $("s" + f).checked).map(f => ({ mhz: f, dbm: Number($("p" + f).value) }));
 function formReadout() {
   const a = antennaForm();
+  const dir = Prop.ANTENNAS[a.type].directional;
   $("asize").disabled = a.type === "dipole";
-  $("again").textContent = BANDS.map(f => `${bandName(f)}: ${Prop.antennaGain(a.type, a.size, f).toFixed(1)} dBi`).join(" · ");
+  $("azrow").style.display = dir ? "" : "none";
+  $("again").textContent = BANDS.map(f => `${bandName(f)}: ${Prop.antennaGain(a.type, a.size, f).toFixed(1)} dBi`).join(" · ") +
+    (dir ? ` · beam ${Math.round(Prop.beamwidth(a.type, Prop.antennaGain(a.type, a.size, 868)))}° wide, pointing ${a.azimuth}° (0 = north, 90 = east)` : " · covers all directions");
 }
 for (const [k, v] of Object.entries(Prop.ANTENNAS)) $("atype").add(new Option(v.label, k));
 $("atype").value = "omni"; $("asize").value = "0.5";
 $("atype").onchange = () => { $("asize").value = { dipole: 0, omni: 0.5, yagi: 0.6, panel: 0.2, dish: 0.6 }[$("atype").value]; formReadout(); };
-for (const id of ["asize", ...BANDS.map(f => "s" + f)]) $(id).oninput = $(id).onchange = formReadout;
+for (const id of ["asize", "aaz", ...BANDS.map(f => "s" + f)]) $(id).oninput = $(id).onchange = formReadout;
 formReadout();
 
 // ── Link through the network: other nodes can relay ──────────────────────────
@@ -294,10 +321,10 @@ function pairMargin(a, b, f, p) {
   const dKm = Prop.distKm(a.lat, a.lon, b.lat, b.lon), n = Math.max(2, Math.round((dKm * 1000) / Math.max(STEP, (dKm * 1000) / 400)));
   const prof = new Float32Array(n + 1), stepM = (dKm * 1000) / n;
   for (let i = 0; i <= n; i++) prof[i] = elevation(a.lat + ((b.lat - a.lat) * i) / n, a.lon + ((b.lon - a.lon) * i) / n);
-  const hA = a.h || p.txH, hB = b.h || p.txH, q = { ...p, f }, sens = PRESETS[f]?.sens ?? p.sens;
+  const hA = a.h || p.txH, hB = b.h || p.txH, sens = PRESETS[f]?.sens ?? p.sens;
   const loss = Math.max(Prop.pathLoss(prof, stepM, f, hA, hB), Prop.pathLoss(Array.from(prof).reverse(), stepM, f, hB, hA));
-  const gA = antGain(a, f) ?? p.nodeGain, gB = antGain(b, f) ?? p.nodeGain;
-  return Math.min((nodeEirp(a, q) ?? p.eirp) + gB - loss, (nodeEirp(b, q) ?? p.eirp) + gA - loss) - sens;
+  const { eA, eB, gA, gB } = hopGains(a, b, f, p);
+  return Math.min(eA + gB - loss, eB + gA - loss) - sens;
 }
 // Approximate distance (km) from point n to the segment a-b.
 function segDistKm(n, a, b) {
@@ -358,6 +385,8 @@ $("freq").onchange = () => { const d = PRESETS[$("freq").value]; $("eirp").value
 $("zones").onclick = () => computeZones(visibleNodes(), params());
 $("clear").onclick = () => { if (zoneLayer) map.removeLayer(zoneLayer); zoneLayer = grid = null; $("zonestats").textContent = ""; $("zonesize").textContent = ""; status(""); };
 $("link").onclick = () => setLinking(!linking);
+$("colorby").onchange = paintZones;
+$("rxg").onchange = paintZones;
 $("add").onclick = () => { adding = !adding; $("add").classList.toggle("on", adding); map.getContainer().style.cursor = adding ? "crosshair" : ""; status(adding ? "Click the map where your Skein node is." : ""); };
 $("export").onclick = () => { const t = JSON.stringify(localSkein(), null, 1); navigator.clipboard?.writeText(t); $("exported").value = t; status("Copied. Send it as a pull request to site/data/skein-nodes.json."); };
 $("routers").onchange = drawNodes;

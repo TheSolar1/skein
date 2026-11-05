@@ -45,4 +45,21 @@ for (const g of [10, 15, 18]) assert.ok(Math.abs(P.antennaGain("yagi", P.antenna
 for (const g of [15, 24]) assert.ok(Math.abs(P.antennaGain("dish", P.antennaSize(g, 2400).dishDiameter, 2400) - g) < 0.01, `dish ${g}`);
 assert.equal(P.antennaGain("dipole", 5, 868), 2.15);
 assert.ok(P.antennaGain("omni", 1.4, 868) > P.antennaGain("omni", 0.35, 868));
+
+
+// Directional antennas: no loss on the axis, 3 dB at half the beamwidth, strong rejection behind; omni has no pattern.
+const yagi = { type: "yagi", size: 0.8, azimuth: 90 };
+const gmax = P.antennaGain("yagi", 0.8, 868), bw = P.beamwidth("yagi", gmax);
+assert.ok(bw > 20 && bw < 90, `beamwidth ${bw}`);
+assert.equal(P.gainToward(yagi, 868, 90), gmax);
+assert.ok(Math.abs(gmax - P.gainToward(yagi, 868, 90 + bw / 2) - 3) < 0.01);
+assert.ok(gmax - P.gainToward(yagi, 868, 270) >= 24.9);
+assert.equal(P.gainToward({ type: "omni", size: 1, azimuth: 0 }, 868, 123), P.antennaGain("omni", 1, 868));
+assert.ok(Math.abs(P.bearing(45, 5, 46, 5)) < 0.01 && Math.abs(P.bearing(45, 5, 45, 6) - 90) < 1);
+
+// Signal quality classes.
+assert.equal(P.qualityClass(25), 0);
+assert.equal(P.qualityClass(12), 1);
+assert.equal(P.qualityClass(0.5), 3);
+assert.equal(P.qualityClass(-1), -1);
 console.log("propagation tests OK");
