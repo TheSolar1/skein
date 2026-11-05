@@ -94,3 +94,19 @@ fn silent_routes_expire() {
     assert_eq!(r.expire(), 1);
     assert!(r.0.is_empty());
 }
+
+#[tokio::test]
+async fn beacon_adds_a_peer_without_internet() {
+    use skein::transport::{Transport, Udp};
+    use std::sync::Arc;
+    let a = Arc::new(Udp::bind("127.0.0.1:0".parse().unwrap(), vec![]).await.unwrap());
+    let b = tokio::net::UdpSocket::bind("127.0.0.1:0").await.unwrap();
+    let mut beacon = b"SKEINHI".to_vec();
+    beacon.extend_from_slice(&[9; 8]);
+    beacon.extend_from_slice(&4242u16.to_be_bytes());
+    b.send_to(&beacon, a.local_addr()).await.unwrap();
+    b.send_to(b"real packet", a.local_addr()).await.unwrap();
+    let (_, data) = a.recv().await.unwrap(); // the beacon is swallowed, the real packet comes through
+    assert_eq!(data, b"real packet");
+    assert!(a.peers().contains(&"127.0.0.1:4242".to_string()));
+}

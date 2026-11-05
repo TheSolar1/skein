@@ -10,7 +10,12 @@ async fn main() {
     let (mut listen, mut gw, mut key) = ("0.0.0.0:7777".to_string(), "127.0.0.1:8080".to_string(), PathBuf::from("skein.key"));
     let (mut peers, mut site, mut name, mut mesh) = (vec![], None::<PathBuf>, None::<String>, None::<String>);
     let mut serial = None::<String>;
+    let mut no_discover = false;
     while let Some(a) = args.next() {
+        if a == "--no-discover" {
+            no_discover = true;
+            continue;
+        }
         let v = args.next().unwrap_or_default();
         match a.as_str() {
             "--listen" => listen = v,
@@ -29,7 +34,12 @@ async fn main() {
         "addr" => println!("{}", fmt_addr(&id.addr())),
         "run" => {
             let udp = Udp::bind(listen.parse().expect("bad --listen"), peers).await.expect("cannot bind UDP port");
-            let mut transports = vec![Arc::new(udp) as Arc<dyn Transport>];
+            let udp = Arc::new(udp);
+            if !no_discover {
+                udp.discover();
+                println!("looking for other nodes on this network (no internet needed)");
+            }
+            let mut transports = vec![udp as Arc<dyn Transport>];
             if let Some(addr) = mesh {
                 transports.push(Arc::new(Meshtastic::connect(&addr).await.expect("cannot reach the Meshtastic radio")));
                 println!("meshtastic radio {addr}");

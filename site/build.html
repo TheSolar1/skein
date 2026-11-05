@@ -22,6 +22,9 @@ input:focus{outline:none;border-color:var(--ac);box-shadow:0 0 0 3px var(--alt)}
 <h1>Build your own node, as cheaply as possible</h1>
 <p class="lead">A Skein node is a small LoRa radio plus a computer that runs the Skein software. You do not need a licence in France for the 868 MHz band at the default power.</p>
 
+<h2>No internet needed</h2>
+<div class="card warn" style="border-left-color:var(--ac)">The Skein software itself never needs internet. Nodes find each other over any local link: a LoRa radio, a Wi-Fi or Ethernet network (even a phone hotspot or a router with no internet), or a Wi-Fi bridge between two buildings. On a shared network they discover each other automatically (port 7777). The node panel and the <code>.skein</code> pages are served from your own machine. <b>Only this map needs internet</b> (map tiles, terrain and node lists), so use it to plan, not to run the network.</div>
+
 <h2>Range or speed: pick your link</h2>
 <div class="card"><p style="margin-top:0">No radio does both. Meshtastic (LoRa) reaches very far but carries only about 1 kbps: fine for messages, painful for files. For lots of data you need a Wi-Fi link, which is 10 000 times faster but needs line of sight. <b>Skein already runs over both at once</b> and sends big transfers over the fast link.</p><table>
 <thead><tr><th>Link</th><th>Range</th><th>Speed</th><th>Cost</th></tr></thead><tbody>

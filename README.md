@@ -22,6 +22,8 @@ Early skeleton. What works today is tested; what does not exist yet is listed ho
 
 - **Meshtastic transport** (`--mesh radio-host:4403`): Skein packets ride in Meshtastic `PRIVATE_APP` payloads through the radio's TCP stream API. On radio links Skein switches to **compact session packets** (key derived from both nodes' static keys, no per-packet signature): about 70 bytes of overhead, so ~150 bytes of file data per 233-byte radio packet instead of ~13. Tested against a fake radio network (30 KB transfer, every payload ≤ 233 bytes); **not yet tested on real hardware**.
 
+- Works with no internet: nodes on the same local network find each other by broadcast (UDP 7777, `--no-discover` to disable); radio links need no network at all. Broadcast discovery is tested only with a simulated beacon, not yet on two real machines.
+
 **Not done yet**
 - **BitChat (Bluetooth) transport** and Meshtastic over BLE. Needs real devices to develop against; not started.
 - Meshtastic over USB serial (`--serial COM5`) is written but untested on hardware.
