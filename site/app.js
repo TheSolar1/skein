@@ -411,7 +411,39 @@ $("zones").onclick = () => computeZones(visibleNodes(), params());
 $("clear").onclick = () => { if (zoneLayer) map.removeLayer(zoneLayer); zoneLayer = grid = null; $("zonestats").textContent = ""; $("zonesize").textContent = ""; status(""); };
 $("link").onclick = () => setLinking(!linking);
 $("colorby").onchange = paintZones;
-$("rxg").onchange = paintZones;
+$("rxg").onchange = () => { $("rxpick").value = "custom"; showShop(); paintZones(); };
+
+// ── Receiving antenna choices: each size is 1 m longer than the last ─────────
+const RX_CHOICES = [["omni", [1, 2, 3, 4]], ["yagi", [1, 2, 3, 4, 5, 6, 7, 8]], ["panel", [1, 2, 3]], ["dish", [1, 2, 3, 4]]];
+const RX_QUERY = { omni: "fiberglass omni antenna", yagi: "yagi antenna", panel: "panel antenna", dish: "grid parabolic antenna" };
+function fillRxChoices() {
+  const f = Number($("freq").value), cur = $("rxpick").value || "custom";
+  const o = $("rxpick"); o.innerHTML = "";
+  o.add(new Option("Type my own gain below", "custom"));
+  o.add(new Option("Stock whip antenna (2 dBi)", "stock"));
+  for (const [type, sizes] of RX_CHOICES) {
+    const g = document.createElement("optgroup"); g.label = Prop.ANTENNAS[type].label;
+    for (const s of sizes) g.appendChild(new Option(`${s} m · ${Prop.antennaGain(type, s, f).toFixed(1)} dBi`, `${type}:${s}`));
+    o.appendChild(g);
+  }
+  o.value = [...o.options].some(x => x.value === cur) ? cur : "custom";
+}
+function showShop() {
+  const v = $("rxpick").value, f = Number($("freq").value);
+  if (v === "custom" || v === "stock") { $("rxshop").innerHTML = ""; return; }
+  const type = v.split(":")[0], q = encodeURIComponent(`${f === 2400 ? "2.4GHz" : f + "MHz"} ${RX_QUERY[type]}`);
+  $("rxshop").innerHTML = `Find one: <a href="https://www.amazon.fr/s?k=${q}" target="_blank" rel="noopener">Amazon</a> · <a href="https://www.aliexpress.com/wholesale?SearchText=${q}" target="_blank" rel="noopener">AliExpress</a>` +
+    (Prop.ANTENNAS[type].directional ? "<br>Directional: assumed pointed at the node you listen to." : "") + "<br>Check the real length and gain in the listing: cheap sellers often overstate them.";
+}
+$("rxpick").onchange = () => {
+  const v = $("rxpick").value;
+  if (v === "stock") $("rxg").value = 2;
+  else if (v !== "custom") { const [t, s] = v.split(":"); $("rxg").value = Prop.antennaGain(t, Number(s), Number($("freq").value)).toFixed(1); }
+  showShop(); paintZones();
+};
+const refreshRx = () => { fillRxChoices(); const v = $("rxpick").value; if (v !== "custom" && v !== "stock") { const [t, s] = v.split(":"); $("rxg").value = Prop.antennaGain(t, Number(s), Number($("freq").value)).toFixed(1); } showShop(); };
+{ const prev = $("freq").onchange; $("freq").onchange = () => { prev(); refreshRx(); if (grid) paintZones(); }; }
+refreshRx();
 $("add").onclick = () => { adding = !adding; $("add").classList.toggle("on", adding); map.getContainer().style.cursor = adding ? "crosshair" : ""; status(adding ? "Click the map where your Skein node is." : ""); };
 $("export").onclick = () => { const t = JSON.stringify(localSkein(), null, 1); navigator.clipboard?.writeText(t); $("exported").value = t; status("Copied. Send it as a pull request to site/data/skein-nodes.json."); };
 $("routers").onchange = drawNodes;
