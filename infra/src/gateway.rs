@@ -1,6 +1,6 @@
 //! Local HTTP gateway: open `http://NAME.skein.localhost:PORT/` in any browser to load a page from the Skein network.
 //! Browsers resolve `*.localhost` to 127.0.0.1 on their own, so no proxy, DNS or admin rights are needed.
-use crate::identity::{fmt_addr, parse_addr};
+use crate::identity::parse_addr;
 use crate::node::Node;
 use axum::{
     extract::{Request, State},
@@ -30,15 +30,10 @@ fn content_type(path: &str) -> &'static str {
     }
 }
 
-fn esc(s: &str) -> String {
-    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
-}
-
 async fn handle(State(node): State<Arc<Node>>, req: Request) -> Response {
     let host_port = req.headers().get(header::HOST).and_then(|h| h.to_str().ok()).unwrap_or("").to_lowercase();
     let host = host_port.split(':').next().unwrap_or("").to_string();
-    let port = host_port.split(':').nth(1).unwrap_or("80").to_string();
-    let path = req.uri().path().to_string();
+        let path = req.uri().path().to_string();
     // "name.skein.localhost" -> the name; "5c1e:....skein.localhost" is not a valid host, so raw addresses use /_/ADDRESS/path.
     let target = if let Some(name) = host.strip_suffix(".skein.localhost") {
         node.resolve(name).map(|a| (a, path.clone())).ok_or(format!("{name}.skein is not known (yet)"))
@@ -46,7 +41,7 @@ async fn handle(State(node): State<Arc<Node>>, req: Request) -> Response {
         let (a, p) = rest.split_once('/').unwrap_or((rest, ""));
         parse_addr(a).map(|a| (a, format!("/{p}"))).ok_or("bad address".to_string())
     } else {
-        return index(&node, &port);
+        return panel(&node, &path);
     };
     match target {
         Err(e) => (StatusCode::NOT_FOUND, e).into_response(),
@@ -57,16 +52,13 @@ async fn handle(State(node): State<Arc<Node>>, req: Request) -> Response {
     }
 }
 
-fn index(node: &Node, port: &str) -> Response {
-    let mut h = format!(
-        "<!doctype html><meta charset=utf-8><title>Skein</title><body style=\"font:16px system-ui;max-width:42rem;margin:2rem auto\"><h1>Skein node</h1><p>Address: <code>{}</code><br>Routes known: {}</p><h2>Names</h2><ul>",
-        fmt_addr(&node.id.addr()),
-        node.route_count()
-    );
-    for (n, a) in node.known_names() {
-        h += &format!("<li><a href=\"http://{0}.skein.localhost:{2}/\">{0}.skein</a> <small>{1}</small></li>", esc(&n), fmt_addr(&a), esc(port));
+const PANEL: &str = include_str!("panel.html");
+
+fn panel(node: &Node, path: &str) -> Response {
+    if path == "/_status.json" {
+        return ([(header::CONTENT_TYPE, "application/json"), (header::CACHE_CONTROL, "no-store")], node.status().to_string()).into_response();
     }
-    Html(h + "</ul>").into_response()
+    Html(PANEL).into_response()
 }
 
 pub async fn serve(node: Arc<Node>, listen: std::net::SocketAddr) -> std::io::Result<()> {

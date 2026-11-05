@@ -820,6 +820,7 @@ dependencies = [
  "ed25519-dalek",
  "rand_core",
  "serde",
+ "serde_json",
  "tokio",
  "tokio-serial",
  "x25519-dalek",

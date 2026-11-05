@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Build a node</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--fg:#1a1d21;--mut:#5f6872;--line:#e3e6ea;--ac:#00875a;--warn:#b45309}
+@media (prefers-color-scheme:dark){:root{--bg:#14171a;--card:#1d2125;--fg:#e8eaed;--mut:#9aa1a9;--line:#2c3238;--ac:#2fd08e;--warn:#f0a04b}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 system-ui,sans-serif}
+main{max-width:46rem;margin:0 auto;padding:1rem 16px 3rem}a{color:var(--ac)}
+h1{font-size:1.6rem;margin:.8rem 0 .2rem}h2{font-size:1.1rem;margin:1.6rem 0 .5rem}
+.lead{color:var(--mut);margin:0 0 1rem}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:.9rem 1rem;margin:.7rem 0;overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:15px}th,td{text-align:left;padding:.45rem .5rem;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--mut);font-weight:500}
+td.p{white-space:nowrap;font-variant-numeric:tabular-nums}tr.tot td{font-weight:600;border-bottom:0}
+.warn{border-left:4px solid var(--warn)}code{font:14px ui-monospace,Consolas,monospace;background:var(--bg);padding:.1rem .3rem;border-radius:4px}
+.mut{color:var(--mut)}ol{padding-left:1.3rem}
+</style></head><body><main>
+<p><a href="./">← Back to the map</a></p>
+<h1>Build your own node, as cheaply as possible</h1>
+<p class="lead">A Skein node is a small LoRa radio plus a computer that runs the Skein software. You do not need a licence in France for the 868 MHz band at the default power.</p>
+
+<h2>Cheapest working setup: about 20 €</h2>
+<div class="card"><table>
+<thead><tr><th>What</th><th>Why</th><th>Price</th></tr></thead>
+<tbody>
+<tr><td><b>ESP32 LoRa board, 868 MHz</b><br><span class="mut">Heltec WiFi LoRa 32 V3, Heltec Wireless Stick Lite V3 or LILYGO T3-S3 (868/915 version)</span></td><td>The radio. Runs the Meshtastic firmware, which Skein talks to. Comes with a small antenna.</td><td class="p">15–25 €</td></tr>
+<tr><td>USB data cable</td><td>Links the board to your computer. You probably own one (it must carry data, not just power).</td><td class="p">0–3 €</td></tr>
+<tr><td>A computer that stays on</td><td>Runs <code>skein</code>. Any PC works to start.</td><td class="p">0 €</td></tr>
+<tr class="tot"><td colspan="2">Total with a computer you already have</td><td class="p">≈ 20 €</td></tr>
+</tbody></table></div>
+
+<h2>Options, only if you need them</h2>
+<div class="card"><table>
+<thead><tr><th>Option</th><th>Use it when</th><th>Price</th></tr></thead>
+<tbody>
+<tr><td>Raspberry Pi Zero 2 W + microSD + 5 V charger</td><td>You want the node on 24 h/day for little power (about 1 W).</td><td class="p">25–35 €</td></tr>
+<tr><td>868 MHz omni antenna, 3–5 dBi, plus SMA pigtail</td><td>Indoors the stock antenna is fine. Outdoors, a better antenna placed high is the best upgrade per euro.</td><td class="p">8–15 €</td></tr>
+<tr><td>868 MHz Yagi (directional)</td><td>One long link toward a known node. Use the map's «&nbsp;Aim at another node&nbsp;» to check the direction.</td><td class="p">25–40 €</td></tr>
+<tr><td>Weatherproof box + cable gland</td><td>Outdoor installation.</td><td class="p">5–10 €</td></tr>
+<tr><td>Short low-loss coax</td><td>Antenna on a mast. Every metre of cheap cable eats signal, so keep it short.</td><td class="p">5–15 €</td></tr>
+</tbody></table></div>
+<p class="mut">Prices are rough ranges for common online shops and move often: check before ordering. Buy the <b>868 MHz</b> version (Europe); the 915 MHz boards are for America.</p>
+
+<h2>Where height matters more than money</h2>
+<p>Radio range depends mostly on how high the antenna is and on terrain in the way. A 20 € node on a roof or window sill often beats a 100 € node in a basement. Use the map to see the zone around where you want to put it before buying anything.</p>
+
+<h2>Set it up</h2>
+<div class="card"><ol>
+<li>Connect the antenna <b>before</b> powering the board.</li>
+<li>Flash Meshtastic from <a href="https://flasher.meshtastic.org">flasher.meshtastic.org</a> (in a Chromium-based browser) and set the region to <code>EU_868</code>.</li>
+<li>Download Skein and build it: <code>cargo build --release</code> in the <code>infra</code> folder (see the <a href="https://github.com/TheSolar1/skein">repository</a>).</li>
+<li>Run <code>skein run --serial COM5</code> (your port may differ). Over Wi-Fi instead: <code>skein run --mesh IP-OF-THE-BOARD:4403</code>.</li>
+<li>Open <code>http://127.0.0.1:8080/</code> for the node panel: your address, neighbours, routes and names.</li>
+<li>Back on the map, place your node and use «&nbsp;Export my nodes&nbsp;» to share its position.</li>
+</ol></div>
+
+<div class="card warn"><b>Good to know</b><ul>
+<li>Never transmit without an antenna attached: it can destroy the radio.</li>
+<li>Keep the default power and settings. In France the 868 MHz band is licence-free but limited in power and airtime.</li>
+<li>The Skein software runs on the computer, not on the radio board itself yet. The radio-over-serial link is written but has not been tested on real hardware.</li>
+</ul></div>
+</main></body></html>

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Skein node</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--fg:#1a1d21;--mut:#6b7280;--line:#e3e6ea;--ac:#00a86b;--bad:#d33}
+@media (prefers-color-scheme:dark){:root{--bg:#14171a;--card:#1d2125;--fg:#e8eaed;--mut:#9aa1a9;--line:#2c3238}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px system-ui,sans-serif}
+main{max-width:56rem;margin:0 auto;padding:1rem 16px 3rem}
+h1{font-size:1.3rem;margin:.6rem 0}h2{font-size:1rem;margin:0 0 .6rem}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:.9rem 1rem;margin:.8rem 0;overflow-x:auto}
+code{font:13px ui-monospace,Consolas,monospace;word-break:break-all}
+table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;padding:.35rem .5rem;border-bottom:1px solid var(--line)}th{color:var(--mut);font-weight:500}
+.dot{display:inline-block;width:.6rem;height:.6rem;border-radius:50%;background:var(--ac);margin-right:.4rem}.dot.off{background:var(--bad)}
+.mut{color:var(--mut)}button,input{font:inherit;padding:.4rem .7rem;border-radius:6px;border:1px solid var(--line);background:var(--card);color:var(--fg)}
+button{cursor:pointer}input{width:min(100%,26rem)}a{color:var(--ac)}
+</style></head><body><main>
+<h1><span class="dot" id="dot"></span>Skein node</h1>
+<div class="card"><h2>Your address</h2><code id="addr">…</code> <button id="copy">Copy</button>
+<p class="mut" id="sub"></p></div>
+<div class="card"><h2>Links</h2><table><thead><tr><th>Transport</th><th>Max packet</th><th>Neighbours heard</th></tr></thead><tbody id="links"></tbody></table></div>
+<div class="card"><h2>Open a node by address</h2>
+<form id="go"><input id="to" placeholder="5c1e:…  (paste an address)" autocomplete="off"> <button>Open</button></form></div>
+<div class="card"><h2>Names (.skein)</h2><table><thead><tr><th>Name</th><th>Address</th></tr></thead><tbody id="names"></tbody></table><p class="mut" id="nonames" hidden>No names heard yet.</p></div>
+<div class="card"><h2>Routes</h2><table><thead><tr><th>Node</th><th>Hops</th><th>Via</th><th>Last heard</th></tr></thead><tbody id="routes"></tbody></table><p class="mut" id="noroutes" hidden>No other node heard yet. Check that a peer or a radio is connected.</p></div>
+</main><script>
+const $=i=>document.getElementById(i), esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const port=location.port||"80";
+async function tick(){
+  try{
+    const s=await (await fetch("/_status.json",{cache:"no-store"})).json();
+    $("dot").classList.remove("off"); $("addr").textContent=s.addr;
+    $("sub").textContent=`${s.routes.length} node${s.routes.length==1?"":"s"} reachable · ${s.names.length} name${s.names.length==1?"":"s"} known`;
+    $("links").innerHTML=s.links.map(l=>`<tr><td>${esc(l.name)}</td><td>${l.mtu} bytes</td><td>${l.peers}</td></tr>`).join("");
+    $("names").innerHTML=s.names.map(n=>`<tr><td><a href="http://${esc(n.name)}.skein.localhost:${port}/">${esc(n.name)}.skein</a>${n.mine?' <span class="mut">(yours)</span>':""}</td><td><code>${esc(n.addr)}</code></td></tr>`).join("");
+    $("nonames").hidden=s.names.length>0;
+    s.routes.sort((a,b)=>a.hops-b.hops);
+    $("routes").innerHTML=s.routes.map(r=>`<tr><td><a href="/_/${esc(r.addr)}/"><code>${esc(r.addr)}</code></a></td><td>${r.hops}</td><td>${esc(r.via)}</td><td>${r.age} s ago</td></tr>`).join("");
+    $("noroutes").hidden=s.routes.length>0;
+  }catch(e){$("dot").classList.add("off");$("sub").textContent="Node not answering…"}
+}
+$("copy").onclick=()=>navigator.clipboard?.writeText($("addr").textContent);
+$("go").onsubmit=e=>{e.preventDefault();const a=$("to").value.trim();if(a)location.href="/_/"+a+"/"};
+tick();setInterval(tick,3000);
+</script></body></html>

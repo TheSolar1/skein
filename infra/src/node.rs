@@ -1,6 +1,6 @@
 //! A Skein node: signed announcements -> routes, name gossip, encrypted request/response with chunked bulk transfer.
 use crate::crypto::{open, seal, session_key, session_open, session_seal};
-use crate::identity::{addr_of, verify, Addr, Identity};
+use crate::identity::{addr_of, fmt_addr, verify, Addr, Identity};
 use crate::naming::{valid_name, NameRecord, Names};
 use crate::packet::*;
 use crate::routing::{Link, Routes};
@@ -125,6 +125,16 @@ impl Node {
         let mut v: Vec<_> = self.names.lock().unwrap().0.values().map(|r| (r.name.clone(), r.addr())).collect();
         v.sort();
         v
+    }
+    /// Snapshot for the control panel.
+    pub fn status(&self) -> serde_json::Value {
+        let routes: Vec<_> = self.routes.lock().unwrap().0.iter().map(|(a, r)| serde_json::json!({
+            "addr": fmt_addr(a), "hops": r.hops, "via": format!("{} {}", self.transports[r.link.transport].name(), r.link.peer), "age": r.heard.elapsed().as_secs(),
+        })).collect();
+        let links: Vec<_> = self.transports.iter().map(|t| serde_json::json!({"name": t.name(), "mtu": t.mtu(), "peers": t.peers().len()})).collect();
+        let mine: Vec<_> = self.my_names.lock().unwrap().iter().map(|r| r.name.clone()).collect();
+        let names: Vec<_> = self.known_names().into_iter().map(|(n, a)| serde_json::json!({"name": n, "addr": fmt_addr(&a), "mine": mine.contains(&n)})).collect();
+        serde_json::json!({"addr": fmt_addr(&self.id.addr()), "links": links, "routes": routes, "names": names})
     }
     pub fn route_count(&self) -> usize {
         self.routes.lock().unwrap().0.len()
