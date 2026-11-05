@@ -64,9 +64,10 @@
     <summary>Radio settings</summary>
     <label>Band
       <select id="freq">
-        <option value="868" selected>868 MHz LoRa (licence-free)</option>
-        <option value="433">433 MHz LoRa (licence-free)</option>
-        <option value="2400">2.4 GHz Wi-Fi / BLE (licence-free)</option>
+        <option value="868" selected>868 MHz LoRa · ~1 kbps, longest range</option>
+        <option value="433">433 MHz LoRa · ~1 kbps, longest range</option>
+        <option value="2400">2.4 GHz Wi-Fi / BLE · ~10–50 Mbps, medium range</option>
+        <option value="5500">5 GHz Wi-Fi point-to-point · ~50–300 Mbps, needs line of sight</option>
       </select>
     </label>
     <label>Node power, EIRP (dBm) <input id="eirp" type="number" value="14"></label>
@@ -88,6 +89,7 @@
     <label class="chk"><input id="s868" type="checkbox" checked> 868 MHz LoRa <input id="p868" type="number" value="14" class="pw"> dBm</label>
     <label class="chk"><input id="s433" type="checkbox"> 433 MHz LoRa <input id="p433" type="number" value="10" class="pw"> dBm</label>
     <label class="chk"><input id="s2400" type="checkbox"> 2.4 GHz Wi-Fi / BLE <input id="p2400" type="number" value="10" class="pw"> dBm</label>
+    <label class="chk"><input id="s5500" type="checkbox"> 5 GHz Wi-Fi point-to-point (fast) <input id="p5500" type="number" value="30" class="pw"> dBm</label>
     <div class="row"><button id="add">Place a node</button><button id="export">Export my nodes</button></div>
     <textarea id="exported" rows="3" placeholder="exported JSON appears here"></textarea>
   </details>

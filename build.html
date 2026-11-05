@@ -22,6 +22,15 @@ input:focus{outline:none;border-color:var(--ac);box-shadow:0 0 0 3px var(--alt)}
 <h1>Build your own node, as cheaply as possible</h1>
 <p class="lead">A Skein node is a small LoRa radio plus a computer that runs the Skein software. You do not need a licence in France for the 868 MHz band at the default power.</p>
 
+<h2>Range or speed: pick your link</h2>
+<div class="card"><p style="margin-top:0">No radio does both. Meshtastic (LoRa) reaches very far but carries only about 1 kbps: fine for messages, painful for files. For lots of data you need a Wi-Fi link, which is 10 000 times faster but needs line of sight. <b>Skein already runs over both at once</b> and sends big transfers over the fast link.</p><table>
+<thead><tr><th>Link</th><th>Range</th><th>Speed</th><th>Cost</th></tr></thead><tbody>
+<tr><td><b>LoRa 868 MHz</b> (Meshtastic)</td><td>5–50 km with height</td><td class="p">≈ 1 kbps</td><td class="p">≈ 20 €</td></tr>
+<tr><td><b>5 GHz Wi-Fi point-to-point</b><br><span class="mut">pair of outdoor units such as TP-Link CPE210/CPE510 or Ubiquiti LiteBeam/NanoStation</span></td><td>1–15 km, clear line of sight</td><td class="p">50–300 Mbps</td><td class="p">≈ 50–100 € per pair</td></tr>
+<tr><td><b>2.4 GHz Wi-Fi with a directional antenna</b></td><td>0.5–5 km</td><td class="p">10–50 Mbps</td><td class="p">≈ 30–60 € per pair</td></tr>
+</tbody></table>
+<p class="mut" style="margin-bottom:0">Wi-Fi units are set up as a bridge (one access point, one client) and carry normal IP traffic, so run <code>skein run --peer IP:7777</code> on each side. Pick «&nbsp;5 GHz&nbsp;» in the map to see which spots have line of sight. Speeds are typical figures, not guarantees.</p></div>
+
 <h2>Cheapest working setup: about 20 €</h2>
 <div class="card"><table>
 <thead><tr><th>What</th><th>Why</th><th>Price</th></tr></thead>
@@ -69,6 +78,6 @@ input:focus{outline:none;border-color:var(--ac);box-shadow:0 0 0 3px var(--alt)}
 <li>The Skein software runs on the computer, not on the radio board itself yet. The radio-over-serial link is written but has not been tested on real hardware.</li>
 </ul></div>
 </main><script>
-const items=[["LoRa board 868 MHz (Heltec V3 / T3-S3)","heltec lora 32 v3 868mhz"],["868 MHz fiberglass omni antenna","868MHz fiberglass omni antenna"],["868 MHz Yagi antenna","868MHz yagi antenna"],["868 MHz panel antenna","868MHz panel antenna"],["868 MHz grid parabolic antenna","868MHz grid parabolic antenna"],["SMA pigtail / coax cable","SMA male pigtail RG58 coax cable"],["Raspberry Pi Zero 2 W","raspberry pi zero 2 w"],["Weatherproof junction box","IP65 waterproof junction box"]];
+const items=[["LoRa board 868 MHz (Heltec V3 / T3-S3)","heltec lora 32 v3 868mhz"],["868 MHz fiberglass omni antenna","868MHz fiberglass omni antenna"],["868 MHz Yagi antenna","868MHz yagi antenna"],["868 MHz panel antenna","868MHz panel antenna"],["868 MHz grid parabolic antenna","868MHz grid parabolic antenna"],["SMA pigtail / coax cable","SMA male pigtail RG58 coax cable"],["5 GHz outdoor CPE pair (TP-Link CPE510 / Ubiquiti LiteBeam)","TP-Link CPE510 5GHz outdoor CPE"],["Raspberry Pi Zero 2 W","raspberry pi zero 2 w"],["Weatherproof junction box","IP65 waterproof junction box"]];
 document.getElementById("shop").innerHTML=items.map(([n,q])=>{q=encodeURIComponent(q);return `<tr><td>${n}</td><td><a href="https://www.amazon.fr/s?k=${q}" target="_blank" rel="noopener">Amazon</a></td><td><a href="https://www.aliexpress.com/wholesale?SearchText=${q}" target="_blank" rel="noopener">AliExpress</a></td></tr>`}).join("");
 </script></body></html>

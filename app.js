@@ -7,7 +7,7 @@ const ZOOM = 9, TILE = 512; // terrain tiles (Mapterhorn, Terrarium encoding): a
 const CELL = 300, STEP = 200, RAY = 0.4; // zone grid cell (m), terrain sample spacing (m), angle between radials (deg)
 const MAX_CELLS = 700 * 700, MAX_NODES = 60;
 const ROUTER_ROLES = new Set(["ROUTER", "ROUTER_LATE", "ROUTER_CLIENT", "REPEATER"]);
-const PRESETS = { 868: { eirp: 14, sens: -130 }, 433: { eirp: 10, sens: -130 }, 2400: { eirp: 10, sens: -95 } }; // LoRa EU868 / LoRa 433 / Wi-Fi-BLE
+const PRESETS = { 868: { eirp: 14, sens: -130 }, 433: { eirp: 10, sens: -130 }, 2400: { eirp: 10, sens: -95 }, 5500: { eirp: 30, sens: -80 } }; // LoRa EU868 / LoRa 433 / Wi-Fi-BLE
 
 const tileCache = new Map(), tileData = new Map();
 const store = (k, v) => { try { v === undefined ? JSON.parse(localStorage.getItem(k)) : localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
@@ -75,8 +75,8 @@ function hopGains(a, b, f, p) {
   const q = { ...p, f }, ab = Prop.bearing(a.lat, a.lon, b.lat, b.lon), ba = (ab + 180) % 360;
   return { eA: nodeEirp(a, q, ab) ?? p.eirp, eB: nodeEirp(b, q, ba) ?? p.eirp, gA: antGainToward(a, f, ab) ?? p.nodeGain, gB: antGainToward(b, f, ba) ?? p.nodeGain };
 }
-const BANDS = [868, 433, 2400];
-const bandName = f => (f === 2400 ? "2.4 GHz" : f + " MHz");
+const BANDS = [868, 433, 2400, 5500];
+const bandName = f => (f === 5500 ? "5 GHz" : f === 2400 ? "2.4 GHz" : f + " MHz");
 const status = t => ($("status").textContent = t);
 const tick = () => new Promise(r => setTimeout(r, 0));
 
@@ -431,7 +431,7 @@ function fillRxChoices() {
 function showShop() {
   const v = $("rxpick").value, f = Number($("freq").value);
   if (v === "custom" || v === "stock") { $("rxshop").innerHTML = ""; return; }
-  const type = v.split(":")[0], q = encodeURIComponent(`${f === 2400 ? "2.4GHz" : f + "MHz"} ${RX_QUERY[type]}`);
+  const type = v.split(":")[0], q = encodeURIComponent(`${f === 5500 ? "5GHz" : f === 2400 ? "2.4GHz" : f + "MHz"} ${RX_QUERY[type]}`);
   $("rxshop").innerHTML = `Find one: <a href="https://www.amazon.fr/s?k=${q}" target="_blank" rel="noopener">Amazon</a> · <a href="https://www.aliexpress.com/wholesale?SearchText=${q}" target="_blank" rel="noopener">AliExpress</a>` +
     (Prop.ANTENNAS[type].directional ? "<br>Directional: assumed pointed at the node you listen to." : "") + "<br>Check the real length and gain in the listing: cheap sellers often overstate them.";
 }
