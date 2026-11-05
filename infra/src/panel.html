@@ -2,17 +2,22 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Skein node</title>
 <style>
-:root{--bg:#f6f7f9;--card:#fff;--fg:#1a1d21;--mut:#6b7280;--line:#e3e6ea;--ac:#00a86b;--bad:#d33}
-@media (prefers-color-scheme:dark){:root{--bg:#14171a;--card:#1d2125;--fg:#e8eaed;--mut:#9aa1a9;--line:#2c3238}}
+:root{--bg:#f5f6f8;--card:#fff;--fg:#1c1e21;--mut:#65676b;--line:#e2e6ec;--ac:#4fa553;--g1:#66bb6a;--g2:#388e3c;--alt:rgba(22,163,74,.10);--warn:#b45309;--bad:#dc2626;--shadow:0 1px 3px rgba(0,0,0,.06),0 4px 14px rgba(0,0,0,.04)}
+@media (prefers-color-scheme:dark){:root{--bg:#0a0a0a;--card:#151515;--fg:#e6e6e6;--mut:#a3a3a3;--line:#2a2a2a;--ac:#43a047;--g1:#2e7d32;--g2:#1b5e20;--alt:rgba(67,160,71,.14);--warn:#d99a2b;--bad:#e5534b;--shadow:0 1px 3px rgba(0,0,0,.4),0 4px 14px rgba(0,0,0,.3)}}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px system-ui,sans-serif}
 main{max-width:56rem;margin:0 auto;padding:1rem 16px 3rem}
 h1{font-size:1.3rem;margin:.6rem 0}h2{font-size:1rem;margin:0 0 .6rem}
-.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:.9rem 1rem;margin:.8rem 0;overflow-x:auto}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:.9rem 1rem;margin:.8rem 0;overflow-x:auto}
 code{font:13px ui-monospace,Consolas,monospace;word-break:break-all}
 table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;padding:.35rem .5rem;border-bottom:1px solid var(--line)}th{color:var(--mut);font-weight:500}
 .dot{display:inline-block;width:.6rem;height:.6rem;border-radius:50%;background:var(--ac);margin-right:.4rem}.dot.off{background:var(--bad)}
 .mut{color:var(--mut)}button,input{font:inherit;padding:.4rem .7rem;border-radius:6px;border:1px solid var(--line);background:var(--card);color:var(--fg)}
 button{cursor:pointer}input{width:min(100%,26rem)}a{color:var(--ac)}
+h1{background:linear-gradient(135deg,var(--g1),var(--g2));color:#fff;margin:0 -16px 1rem;padding:1rem 16px;box-shadow:var(--shadow)}
+h1 .dot{border:2px solid #fff}
+button{font-weight:600;border-radius:8px;border:0;padding:.5rem 1rem;background:linear-gradient(135deg,var(--g1),var(--g2));color:#fff;transition:transform .15s,box-shadow .15s}
+button:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(76,175,80,.35)}
+input:focus{outline:none;border-color:var(--ac);box-shadow:0 0 0 3px var(--alt)}
 </style></head><body><main>
 <h1><span class="dot" id="dot"></span>Skein node</h1>
 <div class="card"><h2>Your address</h2><code id="addr">…</code> <button id="copy">Copy</button>
