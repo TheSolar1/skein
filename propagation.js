@@ -131,7 +131,10 @@
   function gainToward(ant, fMHz, bearingDeg) {
     const g = antennaGain(ant.type, ant.size, fMHz), bw = beamwidth(ant.type, g);
     if (bw >= 360) return g;
-    return g - Math.min(12 * (angDiff(bearingDeg, ant.azimuth || 0) / bw) ** 2, 25);
+    // Angle between the beam axis (azimuth, tilt above the horizon) and the direction to the target (on the horizon).
+    const cos = Math.cos(((ant.tilt || 0) * Math.PI) / 180) * Math.cos((angDiff(bearingDeg, ant.azimuth || 0) * Math.PI) / 180);
+    const off = (Math.acos(Math.max(-1, Math.min(1, cos))) * 180) / Math.PI;
+    return g - Math.min(12 * (off / bw) ** 2, 25);
   }
   const bearing = (lat1, lon1, lat2, lon2) => {
     const p1 = toRad(lat1), p2 = toRad(lat2), dl = toRad(lon2 - lon1);

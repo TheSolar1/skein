@@ -177,9 +177,10 @@ function visibleNodes() {
 }
 function nodeDetails(n) {
   const sig = (n.signals || []).map(x => `${bandName(x.mhz)} ${x.dbm} dBm`).join(", ");
-  const ant = n.antenna ? `${Prop.ANTENNAS[n.antenna.type].label}${n.antenna.type === "dipole" ? "" : " " + fmtM(n.antenna.size)}${Prop.ANTENNAS[n.antenna.type].directional ? `, pointing ${n.antenna.azimuth || 0}°` : ""} (${(n.signals || [{ mhz: 868 }]).map(x => `${antGain(n, x.mhz).toFixed(1)} dBi at ${bandName(x.mhz)}`).join(", ")})` : "";
+  const ant = n.antenna ? `${Prop.ANTENNAS[n.antenna.type].label}${n.antenna.type === "dipole" ? "" : " " + fmtM(n.antenna.size)}${Prop.ANTENNAS[n.antenna.type].directional ? `, pointing ${n.antenna.azimuth || 0}°, tilt ${n.antenna.tilt || 0}°` : ""} (${(n.signals || [{ mhz: 868 }]).map(x => `${antGain(n, x.mhz).toFixed(1)} dBi at ${bandName(x.mhz)}`).join(", ")})` : "";
   return `<b>${n.kind === "skein" ? "Skein node" : "Meshtastic node"}</b><br>${n.role || ""}${n.hw ? " · " + n.hw : ""}<br>${n.lat.toFixed(4)}, ${n.lon.toFixed(4)}${n.h ? ` · ${n.h} m high` : ""}` +
-    (ant ? `<br>Antenna: ${ant}` : "") + (sig ? `<br>Signals: ${sig}` : "") + (n.local ? `<br><button id="rm" class="small">Remove this node</button>` : "");
+    (ant ? `<br>Antenna: ${ant}` : "") + (sig ? `<br>Signals: ${sig}` : "") + (n.local && n.antenna && Prop.ANTENNAS[n.antenna.type].directional ? `<div class="aim"><label>Direction ° <input id="eaz" type="number" min="0" max="359" value="${n.antenna.azimuth || 0}"></label> <label>Tilt ° <input id="etilt" type="range" min="0" max="90" value="${n.antenna.tilt || 0}"> <b id="etv">${n.antenna.tilt || 0}</b></label><br><button id="aimat" class="small">Aim at another node</button></div>` : "") +
+    (n.local ? `<br><button id="rm" class="small">Remove this node</button>` : "");
 }
 function select(n, marker) {
   selectedMarker?.getElement()?.classList.remove("sel");
@@ -187,13 +188,36 @@ function select(n, marker) {
   $("info").innerHTML = nodeDetails(n);
   if (n.signals?.length && !n.signals.some(x => x.mhz === Number($("freq").value))) { $("freq").value = n.signals[0].mhz; $("freq").onchange(); } // show the zone on a band the node really uses
   if ($("rm")) $("rm").onclick = () => { store("skein_nodes_local", localSkein().filter(x => !(x.lat === n.lat && x.lon === n.lon))); skeinNodes = skeinNodes.filter(x => x !== n); drawNodes(); $("info").textContent = "Node removed."; };
+  const saveAnt = () => { store("skein_nodes_local", localSkein().map(x => (x.lat === n.lat && x.lon === n.lon ? { ...x, antenna: n.antenna } : x))); nodeIconRefresh(); $("info").innerHTML = nodeDetails(n); wireAim(n, marker); computeZones([n], params()); };
+  wireAim(n, marker, saveAnt);
   computeZones([n], params());
+}
+// Adjust the antenna of one of my nodes: direction, tilt (level → straight up), or aim straight at another node.
+let aiming = null;
+function wireAim(n, marker, save = marker._save) {
+  marker._save = save;
+  if (!$("eaz")) return;
+  $("eaz").onchange = () => { n.antenna.azimuth = ((Number($("eaz").value) % 360) + 360) % 360; save(); };
+  $("etilt").oninput = () => { $("etv").textContent = $("etilt").value; };
+  $("etilt").onchange = () => { n.antenna.tilt = Number($("etilt").value); save(); };
+  $("aimat").onclick = () => { aiming = { n, save }; status("Click the node to point at."); };
+}
+const nodeIconRefresh = () => {};
+function aimAt(target) {
+  const { n, save } = aiming; aiming = null;
+  const d = Prop.distKm(n.lat, n.lon, target.lat, target.lon) * 1000;
+  if (d < 20) return status("That is the same place.");
+  const dh = elevation(target.lat, target.lon) + (target.h || 5) - elevation(n.lat, n.lon) - (n.h || 5);
+  n.antenna.azimuth = Math.round(Prop.bearing(n.lat, n.lon, target.lat, target.lon));
+  n.antenna.tilt = Math.max(0, Math.min(90, Math.round((Math.atan2(dh, d) * 180) / Math.PI)));
+  status(`Aimed at ${n.antenna.azimuth}°, tilt ${n.antenna.tilt}° (${Math.round(d)} m away).`);
+  save();
 }
 function drawNodes() {
   layers.skein.clearLayers(); layers.mesh.clearLayers();
   const add = (n, group, color, r) => {
     const m = L.marker([n.lat, n.lon], { icon: nodeIcon(color, r), riseOnHover: true }).addTo(group);
-    m.on("click", ev => { L.DomEvent.stopPropagation(ev); linking ? pickLink(n) : select(n, m); });
+    m.on("click", ev => { L.DomEvent.stopPropagation(ev); aiming ? aimAt(n) : linking ? pickLink(n) : select(n, m); });
   };
   const onlyRouters = $("routers").checked;
   for (const n of meshNodes) if (!onlyRouters || ROUTER_ROLES.has(n.role)) add(n, layers.mesh, ROUTER_ROLES.has(n.role) ? "#1565c0" : "#5b9bd5", ROUTER_ROLES.has(n.role) ? 22 : 16);
@@ -204,6 +228,7 @@ const localSkein = () => store("skein_nodes_local") || [];
 
 // ── Click on the map: read the zone grid, or place a node ────────────────────
 map.on("click", ev => {
+  if (aiming) return aimAt({ lat: ev.latlng.lat, lon: ev.latlng.lng });
   if (linking) return pickLink({ lat: ev.latlng.lat, lon: ev.latlng.lng, kind: "point", role: "POINT" });
   if (adding) {
     adding = false; $("add").classList.remove("on"); map.getContainer().style.cursor = "";
@@ -299,20 +324,20 @@ function drawProfile(prof, stepM, p, hA, hB) {
 }
 
 // ── Node form: antenna type + length, several signals ───────────────────────
-const antennaForm = () => ({ type: $("atype").value, size: Number($("asize").value) || 0, azimuth: Number($("aaz").value) || 0 });
+const antennaForm = () => ({ type: $("atype").value, size: Number($("asize").value) || 0, azimuth: Number($("aaz").value) || 0, tilt: Number($("atilt").value) || 0 });
 const signalsForm = () => BANDS.filter(f => $("s" + f).checked).map(f => ({ mhz: f, dbm: Number($("p" + f).value) }));
 function formReadout() {
   const a = antennaForm();
   const dir = Prop.ANTENNAS[a.type].directional;
   $("asize").disabled = a.type === "dipole";
-  $("azrow").style.display = dir ? "" : "none";
+  $("azrow").style.display = $("tiltrow").style.display = dir ? "" : "none";
   $("again").textContent = BANDS.map(f => `${bandName(f)}: ${Prop.antennaGain(a.type, a.size, f).toFixed(1)} dBi`).join(" · ") +
-    (dir ? ` · beam ${Math.round(Prop.beamwidth(a.type, Prop.antennaGain(a.type, a.size, 868)))}° wide, pointing ${a.azimuth}° (0 = north, 90 = east)` : " · covers all directions");
+    (dir ? ` · beam ${Math.round(Prop.beamwidth(a.type, Prop.antennaGain(a.type, a.size, 868)))}° wide, pointing ${a.azimuth}° (0 = north, 90 = east), tilted ${a.tilt}° (0 = level, 90 = straight up)` : " · covers all directions");
 }
 for (const [k, v] of Object.entries(Prop.ANTENNAS)) $("atype").add(new Option(v.label, k));
 $("atype").value = "omni"; $("asize").value = "0.5";
 $("atype").onchange = () => { $("asize").value = { dipole: 0, omni: 0.5, yagi: 0.6, panel: 0.2, dish: 0.6 }[$("atype").value]; formReadout(); };
-for (const id of ["asize", "aaz", ...BANDS.map(f => "s" + f)]) $(id).oninput = $(id).onchange = formReadout;
+for (const id of ["asize", "aaz", "atilt", ...BANDS.map(f => "s" + f)]) $(id).oninput = $(id).onchange = formReadout;
 formReadout();
 
 // ── Link through the network: other nodes can relay ──────────────────────────
