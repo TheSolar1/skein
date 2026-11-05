@@ -1,7 +1,7 @@
 use skein::{gateway, identity::{fmt_addr, Identity}, meshtastic::Meshtastic, node::Node, transport::{Transport, Udp}};
 use std::{path::PathBuf, sync::Arc};
 
-const USAGE: &str = "skein run  [--listen 0.0.0.0:7777] [--peer host:port]... [--site DIR --name NAME] [--mesh radio-host:4403] [--gateway 127.0.0.1:8080] [--key skein.key]\nskein addr [--key skein.key]";
+const USAGE: &str = "skein run  [--listen 0.0.0.0:7777] [--peer host:port]... [--site DIR --name NAME] [--mesh radio-host:4403 | --serial COM5] [--gateway 127.0.0.1:8080] [--key skein.key]\nskein addr [--key skein.key]";
 
 #[tokio::main]
 async fn main() {
@@ -9,6 +9,7 @@ async fn main() {
     let cmd = args.next().unwrap_or_default();
     let (mut listen, mut gw, mut key) = ("0.0.0.0:7777".to_string(), "127.0.0.1:8080".to_string(), PathBuf::from("skein.key"));
     let (mut peers, mut site, mut name, mut mesh) = (vec![], None::<PathBuf>, None::<String>, None::<String>);
+    let mut serial = None::<String>;
     while let Some(a) = args.next() {
         let v = args.next().unwrap_or_default();
         match a.as_str() {
@@ -17,6 +18,7 @@ async fn main() {
             "--site" => site = Some(v.into()),
             "--name" => name = Some(v),
             "--mesh" => mesh = Some(v),
+            "--serial" => serial = Some(v),
             "--gateway" => gw = v,
             "--key" => key = v.into(),
             _ => return eprintln!("{USAGE}"),
@@ -31,6 +33,10 @@ async fn main() {
             if let Some(addr) = mesh {
                 transports.push(Arc::new(Meshtastic::connect(&addr).await.expect("cannot reach the Meshtastic radio")));
                 println!("meshtastic radio {addr}");
+            }
+            if let Some(port) = serial {
+                transports.push(Arc::new(Meshtastic::connect_serial(&port).await.expect("cannot open the serial port")));
+                println!("meshtastic radio on {port}");
             }
             let node = Node::new(id, transports);
             println!("address {}", fmt_addr(&node.id.addr()));

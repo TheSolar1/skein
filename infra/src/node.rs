@@ -97,6 +97,7 @@ impl Node {
         tokio::spawn(async move {
             loop {
                 node.announce().await;
+                node.routes.lock().unwrap().expire();
                 tokio::time::sleep(Duration::from_secs(30)).await;
             }
         });

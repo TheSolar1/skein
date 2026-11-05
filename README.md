@@ -23,9 +23,10 @@ Early skeleton. What works today is tested; what does not exist yet is listed ho
 - **Meshtastic transport** (`--mesh radio-host:4403`): Skein packets ride in Meshtastic `PRIVATE_APP` payloads through the radio's TCP stream API. On radio links Skein switches to **compact session packets** (key derived from both nodes' static keys, no per-packet signature): about 70 bytes of overhead, so ~150 bytes of file data per 233-byte radio packet instead of ~13. Tested against a fake radio network (30 KB transfer, every payload ≤ 233 bytes); **not yet tested on real hardware**.
 
 **Not done yet**
-- **BitChat (Bluetooth) transport**, and Meshtastic over USB serial / BLE (same framing; for now bridge serial to TCP).
+- **BitChat (Bluetooth) transport** and Meshtastic over BLE. Needs real devices to develop against; not started.
+- Meshtastic over USB serial (`--serial COM5`) is written but untested on hardware.
 - Radio airtime and duty-cycle management beyond a fixed pacing between packets (the radio firmware enforces the legal limits).
-- Route expiry / link-failure detection, congestion control, a hop-count-only metric.
+- Congestion control, a hop-count-only metric. Routes now expire after 150 s without an announcement.
 - The map does not yet show Skein nodes, only existing masts.
 
 ## Coverage map (`site/`)

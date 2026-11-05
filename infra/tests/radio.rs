@@ -78,3 +78,19 @@ async fn bulk_transfer_over_meshtastic() {
     println!("largest radio payload: {max} bytes");
     std::fs::remove_dir_all(&dir).ok();
 }
+
+#[test]
+fn silent_routes_expire() {
+    use skein::{identity::Identity, packet::Announce, routing::{Link, Routes, ROUTE_TTL}};
+    let (me, other) = (Identity::generate(), Identity::generate());
+    let (vk, xpub, seq) = (other.vk(), other.xpub(), 1);
+    let a = Announce { vk, xpub, seq, hops: 0, sig: other.sign(&Announce::signed_bytes(&vk, &xpub, seq)) };
+    let mut r = Routes::default();
+    r.update(&a, &Link { transport: 0, peer: "x".into() }, &me.addr());
+    assert_eq!(r.expire(), 0);
+    for v in r.0.values_mut() {
+        v.heard -= ROUTE_TTL + std::time::Duration::from_secs(1);
+    }
+    assert_eq!(r.expire(), 1);
+    assert!(r.0.is_empty());
+}

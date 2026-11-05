@@ -2,8 +2,7 @@
 //!
 //! The radio is reached over the Meshtastic stream API on TCP (a node with Wi-Fi listens on port 4403, as does
 //! `meshtasticd`). Messages are protobuf, framed as `0x94 0xC3 <len u16 BE> <protobuf>`. Only the handful of fields we need
-//! are encoded here by hand, so there is no protobuf dependency. USB serial uses the same framing but is not wired up yet
-//! (bridge it with `ser2net`/`socat` for now).
+//! are encoded here by hand, so there is no protobuf dependency. USB serial uses the same framing (`connect_serial`).
 //!
 //! Skein does all the routing itself, so packets are sent with `hop_limit` 0 (the radio never re-floods them).
 //! The Meshtastic channel key still encrypts the radio hop; Skein's own end-to-end encryption sits on top of it.
@@ -11,8 +10,8 @@ use crate::transport::Transport;
 use async_trait::async_trait;
 use std::{io, sync::{atomic::{AtomicU32, Ordering}, Mutex}};
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
-    net::{tcp::OwnedWriteHalf, TcpStream},
+    io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
+    net::TcpStream,
     sync::{mpsc, Mutex as AsyncMutex},
 };
 
@@ -221,7 +220,7 @@ pub async fn read_frame<R: AsyncReadExt + Unpin>(r: &mut R) -> io::Result<Vec<u8
 
 // ── The transport ────────────────────────────────────────────────────────────
 pub struct Meshtastic {
-    writer: AsyncMutex<OwnedWriteHalf>,
+    writer: AsyncMutex<Box<dyn AsyncWrite + Send + Unpin>>,
     rx: AsyncMutex<mpsc::Receiver<(String, Vec<u8>)>>,
     peers: std::sync::Arc<Mutex<Vec<String>>>,
     next_id: AtomicU32,
@@ -241,8 +240,26 @@ fn peer_num(s: &str) -> Option<u32> {
 impl Meshtastic {
     /// Connect to a radio's TCP stream API, e.g. `192.168.1.50:4403`.
     pub async fn connect(addr: &str) -> io::Result<Self> {
-        let stream = TcpStream::connect(addr).await?;
-        let (mut rd, mut wr) = stream.into_split();
+        let (rd, wr) = TcpStream::connect(addr).await?.into_split();
+        Self::over(rd, wr).await
+    }
+
+    /// Open a radio's USB serial port, e.g. `COM5` or `/dev/ttyUSB0` (115200 baud, same framing as TCP).
+    pub async fn connect_serial(port: &str) -> io::Result<Self> {
+        use tokio_serial::SerialPortBuilderExt;
+        let sp = tokio_serial::new(port, 115_200).open_native_async().map_err(io::Error::other)?;
+        let (rd, wr) = tokio::io::split(sp);
+        Self::over(rd, wr).await
+    }
+
+    /// Run the stream API over any byte stream.
+    pub async fn over<R, W>(mut rd: R, mut wr: W) -> io::Result<Self>
+    where
+        R: AsyncRead + Send + Unpin + 'static,
+        W: AsyncWrite + Send + Unpin + 'static,
+    {
+        // The serial port needs a few wake-up bytes so the firmware leaves its console mode.
+        wr.write_all(&[0x94; 32]).await?;
         wr.write_all(&frame(&to_radio_hello(rand_u32()))).await?;
         let (tx, rx) = mpsc::channel(256);
         let peers = std::sync::Arc::new(Mutex::new(vec![]));
@@ -271,7 +288,7 @@ impl Meshtastic {
                 }
             }
         });
-        Ok(Meshtastic { writer: AsyncMutex::new(wr), rx: AsyncMutex::new(rx), peers, next_id: AtomicU32::new(rand_u32()) })
+        Ok(Meshtastic { writer: AsyncMutex::new(Box::new(wr)), rx: AsyncMutex::new(rx), peers, next_id: AtomicU32::new(rand_u32()) })
     }
 }
 
