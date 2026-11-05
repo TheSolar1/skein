@@ -414,16 +414,21 @@ $("colorby").onchange = paintZones;
 $("rxg").onchange = () => { $("rxpick").value = "custom"; showShop(); paintZones(); };
 
 // ── Receiving antenna choices: each size is 1 m longer than the last ─────────
-const RX_CHOICES = [["omni", [1, 2, 3, 4]], ["yagi", [1, 2, 3, 4, 5, 6, 7, 8]], ["panel", [1, 2, 3]], ["dish", [1, 2, 3, 4]]];
+// Sizes grow by 1 m on the sub-GHz bands. Above 1 GHz the wavelength is short, so the same gain needs far smaller antennas.
+const rxSizes = (type, f) => {
+  const big = { omni: [1, 2, 3, 4], yagi: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], panel: [1, 2, 3], dish: [1, 2, 3, 4, 5, 6] }[type];
+  return f >= 1000 ? { omni: [0.25, 0.5, 1], yagi: [0.25, 0.5, 1, 1.5, 2], panel: [0.1, 0.2, 0.3, 0.5], dish: [0.3, 0.6, 0.9, 1.2, 1.8] }[type] : big;
+};
+const RX_CHOICES = f => ["omni", "yagi", "panel", "dish"].map(t => [t, rxSizes(t, f)]);
 const RX_QUERY = { omni: "fiberglass omni antenna", yagi: "yagi antenna", panel: "panel antenna", dish: "grid parabolic antenna" };
 function fillRxChoices() {
   const f = Number($("freq").value), cur = $("rxpick").value || "custom";
   const o = $("rxpick"); o.innerHTML = "";
   o.add(new Option("Type my own gain below", "custom"));
   o.add(new Option("Stock whip antenna (2 dBi)", "stock"));
-  for (const [type, sizes] of RX_CHOICES) {
+  for (const [type, sizes] of RX_CHOICES(f)) {
     const g = document.createElement("optgroup"); g.label = Prop.ANTENNAS[type].label;
-    for (const s of sizes) g.appendChild(new Option(`${s} m · ${Prop.antennaGain(type, s, f).toFixed(1)} dBi`, `${type}:${s}`));
+    for (const s of sizes) g.appendChild(new Option(`${s} m · ${Prop.antennaGain(type, s, f).toFixed(1)} dBi · hears ×${(10 ** ((Prop.antennaGain(type, s, f) - 2.15) / 20)).toFixed(1)} farther${Prop.ANTENNAS[type].directional ? " (aimed)" : ""}`, `${type}:${s}`));
     o.appendChild(g);
   }
   o.value = [...o.options].some(x => x.value === cur) ? cur : "custom";
