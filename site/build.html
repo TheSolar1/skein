@@ -28,30 +28,31 @@ input:focus{outline:none;border-color:var(--ac);box-shadow:0 0 0 3px var(--alt)}
 <h2>Range or speed: pick your link</h2>
 <div class="card"><p style="margin-top:0">No radio does both. Meshtastic (LoRa) reaches very far but carries only about 1 kbps: fine for messages, painful for files. For lots of data you need a Wi-Fi link, which is 10 000 times faster but needs line of sight. <b>Skein already runs over both at once</b> and sends big transfers over the fast link.</p><table>
 <thead><tr><th>Link</th><th>Range</th><th>Speed</th><th>Cost</th></tr></thead><tbody>
-<tr><td><b>LoRa 868 MHz</b> (Meshtastic)</td><td>5–50 km with height</td><td class="p">≈ 1 kbps</td><td class="p">≈ 20 €</td></tr>
-<tr><td><b>5 GHz Wi-Fi point-to-point</b><br><span class="mut">pair of outdoor units such as TP-Link CPE210/CPE510 or Ubiquiti LiteBeam/NanoStation</span></td><td>1–15 km, clear line of sight</td><td class="p">50–300 Mbps</td><td class="p">≈ 50–100 € per pair</td></tr>
-<tr><td><b>2.4 GHz Wi-Fi with a directional antenna</b></td><td>0.5–5 km</td><td class="p">10–50 Mbps</td><td class="p">≈ 30–60 € per pair</td></tr>
+<tr><td><b>LoRa 868 MHz</b> (Meshtastic)</td><td>5–50 km with height</td><td class="p">≈ 1 kbps</td><td class="p">≈ 21–25 €</td></tr>
+<tr><td><b>5 GHz Wi-Fi point-to-point</b><br><span class="mut">pair of outdoor units such as TP-Link CPE510 (46–70 € each)</span></td><td>1–15 km, clear line of sight</td><td class="p">50–300 Mbps</td><td class="p">≈ 95–140 € per pair</td></tr>
+<tr><td><b>2.4 GHz Wi-Fi with a directional antenna</b><br><span class="mut">TP-Link CPE210 (40–52 € each)</span></td><td>0.5–5 km</td><td class="p">10–50 Mbps</td><td class="p">≈ 80–105 € per pair</td></tr>
 </tbody></table>
 <p class="mut" style="margin-bottom:0">Wi-Fi units are set up as a bridge (one access point, one client) and carry normal IP traffic, so run <code>skein run --peer IP:7777</code> on each side. Pick «&nbsp;5 GHz&nbsp;» in the map to see which spots have line of sight. Speeds are typical figures, not guarantees.</p></div>
 
-<h2>Cheapest working setup: about 20 €</h2>
+<h2>Under 30 €: what you can actually build</h2>
+<p class="lead">Prices checked on 5 November 2026 in European shops, bare item, shipping not included. They change by seller: treat them as the real order of magnitude, not a quote.</p>
 <div class="card"><table>
-<thead><tr><th>What</th><th>Why</th><th>Price</th></tr></thead>
-<tbody>
-<tr><td><b>ESP32 LoRa board, 868 MHz</b><br><span class="mut">Heltec WiFi LoRa 32 V3, Heltec Wireless Stick Lite V3 or LILYGO T3-S3 (868/915 version)</span></td><td>The radio. Runs the Meshtastic firmware, which Skein talks to. Comes with a small antenna.</td><td class="p">15–25 €</td></tr>
-<tr><td>USB data cable</td><td>Links the board to your computer. You probably own one (it must carry data, not just power).</td><td class="p">0–3 €</td></tr>
-<tr><td>A computer that stays on</td><td>Runs <code>skein</code>. Any PC works to start.</td><td class="p">0 €</td></tr>
-<tr class="tot"><td colspan="2">Total with a computer you already have</td><td class="p">≈ 20 €</td></tr>
-</tbody></table></div>
+<thead><tr><th>Build</th><th>What you buy</th><th>Total</th><th>What it does</th></tr></thead><tbody>
+<tr><td><b>A. A whole node with no PC</b><br><span class="mut">fits 30 €</span></td><td>Raspberry Pi Zero 2 W (19–24 €) + 8 GB microSD (≈ 5 €). Reuse any phone charger and micro-USB cable.</td><td class="p">24–29 €</td><td>The Pi <b>is</b> the computer: it runs Skein and has Wi-Fi built in. Carries big files at 10–50 Mbps over Wi-Fi, but the small built-in antenna reaches only tens of metres, so it links nearby nodes and the rest of the network through whoever is in range.</td></tr>
+<tr><td><b>B. Long-range radio, using a computer you own</b><br><span class="mut">fits 30 €</span></td><td>Heltec WiFi LoRa 32 V3 868 MHz (21–25 €) + USB cable you already have.</td><td class="p">21–25 €</td><td>Reaches kilometres, but only about 1 kbps: messages, not files. Needs a PC, laptop or Pi left on next to it.</td></tr>
+<tr><td><b>C. Radio and computer together</b><br><span class="mut">over budget</span></td><td>Build A + Build B.</td><td class="p">45–54 €</td><td>Long-range radio on a self-contained node.</td></tr>
+<tr><td><b>D. Big files over kilometres</b><br><span class="mut">over budget</span></td><td>Two TP-Link CPE510 units (46–70 € each), one at each end, plus a computer or Pi at each end.</td><td class="p">95–140 € per link</td><td>50–300 Mbps over several km with line of sight.</td></tr>
+</tbody></table>
+<p class="mut" style="margin-bottom:0"><b>The honest limit:</b> under 30 € you get either long range at 1 kbps (B) or a fast link over a short distance (A), never both. Fast and far starts around 95 € (D). Skein has not been tested on a Pi yet: it should build there with <code>cargo build --release</code>, which is slow on a Zero 2 W.</p></div>
 
 <h2>Even cheaper: Bluetooth, nothing to buy</h2>
 <div class="card warn">Phones and laptops already have Bluetooth, so nearby devices could form a small Skein network with no extra hardware (the idea behind BitChat). Range is short, roughly 10–50 m per hop, but every device can relay for the next one. <b>This is not built yet</b>: today Skein only talks to Meshtastic radios and over the internet (UDP). It is the next transport on the list.</div>
 
 <h2>Options, only if you need them</h2>
 <div class="card"><table>
-<thead><tr><th>Option</th><th>Use it when</th><th>Price</th></tr></thead>
+<thead><tr><th>Option</th><th>Use it when</th><th>Price<br><span class="mut">(antennas, box, cable: my estimate, not checked)</span></th></tr></thead>
 <tbody>
-<tr><td>Raspberry Pi Zero 2 W + microSD + 5 V charger</td><td>You want the node on 24 h/day for little power (about 1 W).</td><td class="p">25–35 €</td></tr>
+<tr><td>Raspberry Pi Zero 2 W + microSD + 5 V charger</td><td>You want the node on 24 h/day for little power (about 1 W).</td><td class="p">24–29 €<br><span class="mut">+ 5–8 € if you need a charger</span></td></tr>
 <tr><td>868 MHz omni antenna, 3–5 dBi, plus SMA pigtail</td><td>Indoors the stock antenna is fine. Outdoors, a better antenna placed high is the best upgrade per euro.</td><td class="p">8–15 €</td></tr>
 <tr><td>868 MHz Yagi (directional)</td><td>One long link toward a known node. Use the map's «&nbsp;Aim at another node&nbsp;» to check the direction.</td><td class="p">25–40 €</td></tr>
 <tr><td>Weatherproof box + cable gland</td><td>Outdoor installation.</td><td class="p">5–10 €</td></tr>
@@ -60,7 +61,7 @@ input:focus{outline:none;border-color:var(--ac);box-shadow:0 0 0 3px var(--alt)}
 <h2>Where to buy</h2>
 <div class="card"><p style="margin-top:0">Search links, not recommendations: I cannot check listings or stock. Compare a few sellers, and read the real gain and length in the description.</p><table>
 <thead><tr><th>Item</th><th>Amazon</th><th>AliExpress</th></tr></thead><tbody id="shop"></tbody></table></div>
-<p class="mut">Prices are rough ranges for common online shops and move often: check before ordering. Buy the <b>868 MHz</b> version (Europe); the 915 MHz boards are for America.</p>
+<p class="mut">Item prices below are from the same 5 November 2026 check (Pi Zero 2 W via Bürklin and Reichelt, Heltec V3 via Tinytronics and Hexaspot, CPE210/CPE510 via PriceSpy, Aio and Bechtle). Stock and price move: check before ordering. Buy the <b>868 MHz</b> version (Europe); the 915 MHz boards are for America.</p>
 
 <h2>Where height matters more than money</h2>
 <p>Radio range depends mostly on how high the antenna is and on terrain in the way. A 20 € node on a roof or window sill often beats a 100 € node in a basement. Use the map to see the zone around where you want to put it before buying anything.</p>
