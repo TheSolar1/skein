@@ -32,7 +32,9 @@
       <option value="quality">Signal quality (reliability)</option>
     </select>
   </label>
-  <label>Your receiving antenna (dBi) <input id="rxg" type="number" value="2"></label>
+  <label>Your receiving antenna <select id="rxpick"></select></label>
+  <label>…or type its gain (dBi) <input id="rxg" type="number" value="2" step="0.5"></label>
+  <p class="hint" id="rxshop"></p>
   <label>Zones from
     <select id="zonesrc">
       <option value="skein">Skein nodes</option>

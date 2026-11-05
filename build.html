@@ -46,6 +46,9 @@ input:focus{outline:none;border-color:var(--ac);box-shadow:0 0 0 3px var(--alt)}
 <tr><td>Weatherproof box + cable gland</td><td>Outdoor installation.</td><td class="p">5–10 €</td></tr>
 <tr><td>Short low-loss coax</td><td>Antenna on a mast. Every metre of cheap cable eats signal, so keep it short.</td><td class="p">5–15 €</td></tr>
 </tbody></table></div>
+<h2>Where to buy</h2>
+<div class="card"><p style="margin-top:0">Search links, not recommendations: I cannot check listings or stock. Compare a few sellers, and read the real gain and length in the description.</p><table>
+<thead><tr><th>Item</th><th>Amazon</th><th>AliExpress</th></tr></thead><tbody id="shop"></tbody></table></div>
 <p class="mut">Prices are rough ranges for common online shops and move often: check before ordering. Buy the <b>868 MHz</b> version (Europe); the 915 MHz boards are for America.</p>
 
 <h2>Where height matters more than money</h2>
@@ -66,4 +69,7 @@ input:focus{outline:none;border-color:var(--ac);box-shadow:0 0 0 3px var(--alt)}
 <li>Keep the default power and settings. In France the 868 MHz band is licence-free but limited in power and airtime.</li>
 <li>The Skein software runs on the computer, not on the radio board itself yet. The radio-over-serial link is written but has not been tested on real hardware.</li>
 </ul></div>
-</main></body></html>
+</main><script>
+const items=[["LoRa board 868 MHz (Heltec V3 / T3-S3)","heltec lora 32 v3 868mhz"],["868 MHz fiberglass omni antenna","868MHz fiberglass omni antenna"],["868 MHz Yagi antenna","868MHz yagi antenna"],["868 MHz panel antenna","868MHz panel antenna"],["868 MHz grid parabolic antenna","868MHz grid parabolic antenna"],["SMA pigtail / coax cable","SMA male pigtail RG58 coax cable"],["Raspberry Pi Zero 2 W","raspberry pi zero 2 w"],["Weatherproof junction box","IP65 waterproof junction box"]];
+document.getElementById("shop").innerHTML=items.map(([n,q])=>{q=encodeURIComponent(q);return `<tr><td>${n}</td><td><a href="https://www.amazon.fr/s?k=${q}" target="_blank" rel="noopener">Amazon</a></td><td><a href="https://www.aliexpress.com/wholesale?SearchText=${q}" target="_blank" rel="noopener">AliExpress</a></td></tr>`}).join("");
+</script></body></html>
